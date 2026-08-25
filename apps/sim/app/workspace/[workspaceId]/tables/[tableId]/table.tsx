@@ -1652,7 +1652,6 @@ export function Table({
         }
         workspaceId={workspaceId}
         tableId={tableId}
-        onColumnRename={onColumnRename}
       />
       <EnrichmentsSidebar
         open={slideout.kind === 'enrichments'}
