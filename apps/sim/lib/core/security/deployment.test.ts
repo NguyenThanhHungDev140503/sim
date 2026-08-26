@@ -1,8 +1,12 @@
 /**
  * @vitest-environment node
  */
+
+import { sha256Hex } from '@sim/security/hash'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type { NextResponse } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
+import { env } from '@/lib/core/config/env'
 import {
   isEmailAllowed,
   readDeploymentAuthToken,
@@ -20,6 +24,17 @@ function mintDeploymentAuthToken(
   return set.mock.calls[0][0].value
 }
 
+function mintLegacyDeploymentAuthToken(
+  deploymentId: string,
+  authType: string,
+  encryptedPassword?: string
+): string {
+  const passwordSlot = encryptedPassword ? sha256Hex(encryptedPassword).slice(0, 8) : ''
+  const payload = `${deploymentId}:${authType}:${Date.now()}:${passwordSlot}`
+  const signature = hmacSha256Hex(payload, env.BETTER_AUTH_SECRET)
+  return Buffer.from(`${payload}:${signature}`).toString('base64')
+}
+
 describe('deployment auth tokens', () => {
   it('round-trips the normalized email proven by OTP authentication', () => {
     const token = mintDeploymentAuthToken('chat-1', 'email', ' Person@Example.com ')
@@ -33,6 +48,18 @@ describe('deployment auth tokens', () => {
     const token = mintDeploymentAuthToken('chat-1', 'password')
 
     expect(readDeploymentAuthToken(token, 'chat-1', 'password')).toEqual({})
+  })
+
+  it('accepts a valid legacy password token without inventing identity', () => {
+    const token = mintLegacyDeploymentAuthToken('chat-1', 'password', 'encrypted-password')
+
+    expect(readDeploymentAuthToken(token, 'chat-1', 'password', 'encrypted-password')).toEqual({})
+  })
+
+  it('rejects a legacy email token that cannot prove an email identity', () => {
+    const token = mintLegacyDeploymentAuthToken('chat-1', 'email')
+
+    expect(readDeploymentAuthToken(token, 'chat-1', 'email')).toBeNull()
   })
 
   it('rejects a token outside its bound deployment and authentication type', () => {

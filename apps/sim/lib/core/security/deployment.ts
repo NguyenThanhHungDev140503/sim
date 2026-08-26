@@ -67,8 +67,8 @@ export function readDeploymentAuthToken(
     if (!safeCompare(sig, signPayload(payload))) return null
 
     const parts = payload.split(':')
-    if (parts.length !== 5) return null
-    const [storedId, storedType, timestamp, storedPwSlot, storedEmailSlot] = parts
+    if (parts.length !== 4 && parts.length !== 5) return null
+    const [storedId, storedType, timestamp, storedPwSlot, storedEmailSlot = ''] = parts
 
     if (storedId !== deploymentId || storedType !== authType) return null
     if (storedPwSlot !== passwordSlot(encryptedPassword)) return null
