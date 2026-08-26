@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
+import { Badge, Checkbox, Chip, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
@@ -28,6 +28,7 @@ export type CellRenderKind =
   // Plain typed cells
   | { kind: 'boolean'; checked: boolean }
   | { kind: 'select'; options: SelectOption[] }
+  | { kind: 'column-chip'; label: string; icon: React.ComponentType<{ className?: string }> }
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string }
   | { kind: 'url'; text: string; href: string; domain: string }
@@ -127,6 +128,17 @@ export function resolveCellRender({
   // "None" so every select cell reads as a clickable dropdown.
   if (column.type === 'select') {
     return { kind: 'select', options: resolveSelectOptions(column, value) }
+  }
+  const typeDefinition = columnTypeOf(column)
+  if (typeDefinition.referencePreview) {
+    const rowId = typeDefinition.referencePreview.getRowId(value)
+    return rowId
+      ? {
+          kind: 'column-chip',
+          label: typeDefinition.referencePreview.getChipLabel(column),
+          icon: typeDefinition.icon,
+        }
+      : { kind: 'empty' }
   }
   if (isNull) return { kind: 'empty' }
   // Formatted here rather than in a render branch because the symbol and
@@ -251,9 +263,19 @@ function extractSimResourceInfo(
 interface CellRenderProps {
   kind: CellRenderKind
   isEditing: boolean
+  referenceAction?: ReferenceCellAction
 }
 
-export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
+export interface ReferenceCellAction {
+  expanded: boolean
+  onClick: () => void
+}
+
+export function CellRender({
+  kind,
+  isEditing,
+  referenceAction,
+}: CellRenderProps): React.ReactElement | null {
   const valueText = kind.kind === 'value' ? kind.text : null
   const revealedValueText = useTypewriter(valueText)
 
@@ -374,6 +396,25 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
           )}
         </span>
       )
+
+    case 'column-chip': {
+      const ChipIcon = kind.icon
+      return (
+        <Chip
+          active={referenceAction?.expanded}
+          leftIcon={ChipIcon}
+          aria-expanded={referenceAction?.expanded}
+          disabled={!referenceAction}
+          className={cn('h-5 max-w-full', isEditing && 'invisible')}
+          onClick={(event) => {
+            event.stopPropagation()
+            referenceAction?.onClick()
+          }}
+        >
+          {kind.label}
+        </Chip>
+      )
+    }
 
     case 'json':
       return (

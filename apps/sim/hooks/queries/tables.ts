@@ -59,8 +59,10 @@ import {
   deleteTableViewContract,
   deleteWorkflowGroupContract,
   findTableRowsContract,
+  type GetTableRowResponse,
   getEnrichmentDetailContract,
   getTableContract,
+  getTableRowContract,
   type InsertTableRowBodyInput,
   listActiveDispatchesContract,
   listTableJobsContract,
@@ -217,6 +219,25 @@ async function fetchTableRows({
   return { rows, totalCount, nextCursor }
 }
 
+async function fetchTableRow(
+  workspaceId: string,
+  tableId: string,
+  rowId: string,
+  signal?: AbortSignal
+): Promise<GetTableRowResponse['data']['row'] | null> {
+  try {
+    const response = await requestJson(getTableRowContract, {
+      params: { tableId, rowId },
+      query: { workspaceId },
+      signal,
+    })
+    return response.data.row
+  } catch (error) {
+    if (isApiClientError(error) && error.status === 404) return null
+    throw error
+  }
+}
+
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
@@ -311,6 +332,21 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_DETAIL_STALE_TIME,
+  })
+}
+
+/** Reads one row on demand. A missing row resolves to null for reference previews. */
+export function useTableRow(
+  workspaceId: string | undefined,
+  tableId: string | undefined,
+  rowId: string | undefined
+) {
+  return useQuery({
+    queryKey: tableKeys.row(tableId ?? '', rowId ?? ''),
+    queryFn: ({ signal }) =>
+      fetchTableRow(workspaceId as string, tableId as string, rowId as string, signal),
+    enabled: Boolean(workspaceId && tableId && rowId),
+    staleTime: TABLE_ROWS_STALE_TIME,
   })
 }
 
@@ -1227,6 +1263,21 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       if (handleTableLockRejection(error, queryClient, tableId)) return
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { updates }) => {
+      const rowIds = new Set(updates.map(({ rowId }) => rowId))
+      const rowsRoot = tableKeys.rowsRoot(tableId)
+      queryClient.invalidateQueries({
+        queryKey: rowsRoot,
+        predicate: (query) => {
+          const rowId = query.queryKey[rowsRoot.length + 1]
+          return (
+            query.queryKey[rowsRoot.length] === 'row' &&
+            typeof rowId === 'string' &&
+            rowIds.has(rowId)
+          )
+        },
+      })
     },
   })
 }

@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { useQuery } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { queryClient, cacheStore } = vi.hoisted(() => {
@@ -57,12 +59,16 @@ vi.mock('@sim/emcn', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }))
 
-import type { TableViewWire } from '@/lib/api/contracts/tables'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { getTableRowContract, type TableViewWire } from '@/lib/api/contracts/tables'
 import {
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
+  useBatchUpdateTableRows,
   useDeleteColumn,
   useRestoreTable,
+  useTableRow,
   useUpdateColumn,
   useUpdateTableView,
 } from '@/hooks/queries/tables'
@@ -89,6 +95,84 @@ function getCache<T>(key: readonly unknown[]): T | undefined {
 beforeEach(() => {
   cacheStore.clear()
   vi.clearAllMocks()
+})
+
+describe('useTableRow', () => {
+  function getQueryOptions() {
+    return vi.mocked(useQuery).mock.calls.at(-1)?.[0] as {
+      enabled: boolean
+      queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
+    }
+  }
+
+  it('treats a missing referenced row as zero rows', async () => {
+    vi.mocked(requestJson).mockRejectedValueOnce({ status: 404 })
+    vi.mocked(isApiClientError).mockReturnValueOnce(true)
+
+    useTableRow(WORKSPACE_ID, TABLE_ID, 'missing-row')
+
+    const options = getQueryOptions()
+    expect(options.enabled).toBe(true)
+    await expect(options.queryFn({ signal: new AbortController().signal })).resolves.toBeNull()
+  })
+
+  it('forwards the row scope and cancellation signal through the shared contract', async () => {
+    const row = { id: 'row-1', data: { name: 'Acme' } }
+    const signal = new AbortController().signal
+    vi.mocked(requestJson).mockResolvedValueOnce({ data: { row } })
+
+    useTableRow(WORKSPACE_ID, TABLE_ID, row.id)
+
+    await expect(getQueryOptions().queryFn({ signal })).resolves.toEqual(row)
+    expect(requestJson).toHaveBeenCalledWith(getTableRowContract, {
+      params: { tableId: TABLE_ID, rowId: row.id },
+      query: { workspaceId: WORKSPACE_ID },
+      signal,
+    })
+  })
+
+  it('preserves non-404 API failures', async () => {
+    const error = { status: 500 }
+    vi.mocked(requestJson).mockRejectedValueOnce(error)
+    vi.mocked(isApiClientError).mockReturnValueOnce(true)
+
+    useTableRow(WORKSPACE_ID, TABLE_ID, 'row-1')
+
+    await expect(getQueryOptions().queryFn({ signal: new AbortController().signal })).rejects.toBe(
+      error
+    )
+  })
+
+  it('preserves failures that are not API client errors', async () => {
+    const error = new Error('connection failed')
+    vi.mocked(requestJson).mockRejectedValueOnce(error)
+
+    useTableRow(WORKSPACE_ID, TABLE_ID, 'row-1')
+
+    await expect(getQueryOptions().queryFn({ signal: new AbortController().signal })).rejects.toBe(
+      error
+    )
+  })
+})
+
+describe('useBatchUpdateTableRows', () => {
+  it('invalidates cached row details after a batch write settles', () => {
+    const hook = useBatchUpdateTableRows({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    const updates = [
+      { rowId: 'row-1', data: { name: 'Acme' } },
+      { rowId: 'row-2', data: { name: 'Globex' } },
+    ]
+
+    hook.onSettled?.(undefined, null, { updates }, undefined)
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledOnce()
+    const options = queryClient.invalidateQueries.mock.calls[0]?.[0]
+    expect(options?.queryKey).toEqual(tableKeys.rowsRoot(TABLE_ID))
+    expect(options?.predicate({ queryKey: tableKeys.row(TABLE_ID, 'row-1') })).toBe(true)
+    expect(options?.predicate({ queryKey: tableKeys.row(TABLE_ID, 'row-2') })).toBe(true)
+    expect(options?.predicate({ queryKey: tableKeys.row(TABLE_ID, 'row-3') })).toBe(false)
+    expect(options?.predicate({ queryKey: tableKeys.infiniteRowsRoot(TABLE_ID) })).toBe(false)
+  })
 })
 
 describe('useUpdateTableView autosave ordering', () => {

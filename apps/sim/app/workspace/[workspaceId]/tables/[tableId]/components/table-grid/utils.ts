@@ -14,9 +14,12 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
+import type {
+  DisplayColumn,
+  ReferencePreviewTarget,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import type { DisplayColumn } from './types'
 
 /**
  * `all` means "every row matching the active filter" — including rows not yet loaded by the
@@ -30,6 +33,18 @@ export type RowSelection =
 
 export const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
 export const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
+
+export function isSameReferencePreviewTarget(
+  left: ReferencePreviewTarget | null,
+  right: ReferencePreviewTarget
+): boolean {
+  return (
+    left?.sourceRowId === right.sourceRowId &&
+    left.sourceColumnKey === right.sourceColumnKey &&
+    left.referenceTableId === right.referenceTableId &&
+    left.referenceRowId === right.referenceRowId
+  )
+}
 
 interface HorizontalEdgeScrollVelocityInput {
   pointerX: number

@@ -25,6 +25,7 @@ export const tableKeys = {
   exportJobs: (workspaceId?: string) =>
     [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
+  row: (tableId: string, rowId: string) => [...tableKeys.rowsRoot(tableId), 'row', rowId] as const,
   /**
    * Prefix covering only the paged row lists. `rowsRoot` is a shared parent — `find`
    * hangs off it holding a different shape — so anything walking the cache for row

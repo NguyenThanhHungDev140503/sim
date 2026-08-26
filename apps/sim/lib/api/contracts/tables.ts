@@ -1521,6 +1521,8 @@ export const getTableRowContract = defineRouteContract({
   },
 })
 
+export type GetTableRowResponse = ContractJsonResponse<typeof getTableRowContract>
+
 export const updateTableRowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/table/[tableId]/rows/[rowId]',

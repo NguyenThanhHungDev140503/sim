@@ -35,3 +35,10 @@ export interface DisplayColumn extends ColumnDefinition {
   /** True when this is the leftmost sibling of its group (or non-grouped). */
   isGroupStart: boolean
 }
+
+export interface ReferencePreviewTarget {
+  sourceRowId: string
+  sourceColumnKey: string
+  referenceTableId: string
+  referenceRowId: string
+}

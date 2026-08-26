@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn, toast, useToast, writeTextToClipboard } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -31,6 +31,10 @@ import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  REFERENCE_ROW_PREVIEW_HEIGHT,
+  ReferenceRowPreview,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/reference-row-preview'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezone } from '@/hooks/queries/general-settings'
@@ -66,7 +70,7 @@ import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import { RemoteSelectionOverlay } from './remote-selection-overlay'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
-import type { DisplayColumn } from './types'
+import type { DisplayColumn, ReferencePreviewTarget } from './types'
 import {
   buildHeaderGroups,
   buildTableSelectionContext,
@@ -83,6 +87,7 @@ import {
   expandToDisplayColumns,
   horizontalEdgeScrollVelocity,
   isCellInSelection,
+  isSameReferencePreviewTarget,
   moveCell,
   ROW_SELECTION_ALL,
   ROW_SELECTION_NONE,
@@ -648,19 +653,7 @@ export function TableGrid({
    */
   const [headerHeight, setHeaderHeight] = useState(0)
   const [rowHeight, setRowHeight] = useState(ROW_HEIGHT_ESTIMATE)
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => rowHeight,
-    overscan: 12,
-    scrollMargin: headerHeight,
-    getItemKey: (index) => rows[index]?.id ?? index,
-  })
-
-  useEffect(() => {
-    rowVirtualizer.measure()
-  }, [rowHeight, rowVirtualizer])
+  const [expandedReference, setExpandedReference] = useState<ReferencePreviewTarget | null>(null)
 
   useLayoutEffect(() => {
     const el = theadRef.current
@@ -893,6 +886,36 @@ export function TableGrid({
     }
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, hiddenColumns, tableWorkflowGroups])
+
+  const activeExpandedReference = useMemo(() => {
+    if (!expandedReference) return null
+    const sourceRow = rows.find((row) => row.id === expandedReference.sourceRowId)
+    const sourceColumn = displayColumns.find(
+      (column) => column.key === expandedReference.sourceColumnKey
+    )
+    const referencePreview = sourceColumn ? columnTypeOf(sourceColumn).referencePreview : undefined
+    return sourceRow?.data[expandedReference.sourceColumnKey] ===
+      expandedReference.referenceRowId &&
+      sourceColumn &&
+      referencePreview?.getTableId(sourceColumn) === expandedReference.referenceTableId
+      ? expandedReference
+      : null
+  }, [displayColumns, rows, expandedReference])
+  const expandedSourceRowId = activeExpandedReference?.sourceRowId ?? null
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) =>
+      rowHeight + (rows[index]?.id === expandedSourceRowId ? REFERENCE_ROW_PREVIEW_HEIGHT : 0),
+    overscan: 12,
+    scrollMargin: headerHeight,
+    getItemKey: (index) => rows[index]?.id ?? index,
+  })
+
+  useEffect(() => {
+    rowVirtualizer.measure()
+  }, [rowHeight, expandedSourceRowId, rowVirtualizer])
 
   /** Column id → its rendered index (matches the cells' `data-col`), for placing overlays.
    *  Only built when collaborators are present (the overlay it feeds is gated on that too),
@@ -2774,6 +2797,14 @@ export function TableGrid({
     []
   )
 
+  const handleReferenceClick = useCallback((target: ReferencePreviewTarget) => {
+    setEditingCell(null)
+    setInitialCharacter(null)
+    setExpandedReference((current) =>
+      isSameReferencePreviewTarget(current, target) ? null : target
+    )
+  }, [])
+
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
       const column = columnsRef.current.find((c) => c.key === columnKey)
@@ -2890,8 +2921,9 @@ export function TableGrid({
     if (!el) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const target = e.target
+      if (!(target instanceof HTMLElement)) return
+      if (target.closest('input, textarea, select, button, a, [contenteditable]')) return
 
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'y')) {
         e.preventDefault()
@@ -4681,7 +4713,7 @@ export function TableGrid({
           ref={scrollRef}
           tabIndex={-1}
           className={cn(
-            'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
+            'min-h-0 flex-1 overflow-auto overscroll-none outline-none [container-type:inline-size]',
             resizingColumn && 'select-none'
           )}
           data-table-scroll
@@ -4946,48 +4978,64 @@ export function TableGrid({
                             const index = virtualRow.index
                             const row = rows[index]
                             if (!row) return null
+                            const rowReference =
+                              activeExpandedReference?.sourceRowId === row.id
+                                ? activeExpandedReference
+                                : null
                             return (
-                              <DataRow
-                                key={row.id}
-                                row={row}
-                                columns={displayColumns}
-                                workspaceId={workspaceId}
-                                rowIndex={index}
-                                isFirstRow={index === 0}
-                                editingColumnName={
-                                  editingCell?.rowId === row.id ? editingCell.columnName : null
-                                }
-                                initialCharacter={
-                                  editingCell?.rowId === row.id ? initialCharacter : null
-                                }
-                                pendingCellValue={
-                                  pendingUpdate && pendingUpdate.rowId === row.id
-                                    ? pendingUpdate.data
-                                    : null
-                                }
-                                normalizedSelection={normalizedSelection}
-                                onClick={handleCellClick}
-                                onDoubleClick={handleCellDoubleClick}
-                                onSave={handleInlineSave}
-                                onCancel={handleInlineCancel}
-                                onContextMenu={handleRowContextMenu}
-                                onCellMouseDown={handleCellMouseDown}
-                                onCellMouseEnter={handleCellMouseEnter}
-                                isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
-                                onRowToggle={handleRowToggle}
-                                onRowMouseDown={handleRowMouseDown}
-                                onRowMouseEnter={handleRowMouseEnter}
-                                runningCount={runningByRowId[row.id] ?? 0}
-                                hasWorkflowColumns={hasWorkflowColumns}
-                                numRegionWidth={numRegionWidth}
-                                onStopRow={onStopRow}
-                                onRunRow={onRunRow}
-                                workflowGroups={tableWorkflowGroups}
-                                activeDispatches={activeDispatches}
-                                pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
-                                lastPinnedColKey={lastPinnedColKey}
-                                findMatchColumns={findMatchColumnsByRowId.get(row.id)}
-                              />
+                              <Fragment key={row.id}>
+                                <DataRow
+                                  row={row}
+                                  columns={displayColumns}
+                                  workspaceId={workspaceId}
+                                  rowIndex={index}
+                                  isFirstRow={index === 0}
+                                  editingColumnName={
+                                    editingCell?.rowId === row.id ? editingCell.columnName : null
+                                  }
+                                  initialCharacter={
+                                    editingCell?.rowId === row.id ? initialCharacter : null
+                                  }
+                                  pendingCellValue={
+                                    pendingUpdate && pendingUpdate.rowId === row.id
+                                      ? pendingUpdate.data
+                                      : null
+                                  }
+                                  normalizedSelection={normalizedSelection}
+                                  onClick={handleCellClick}
+                                  onDoubleClick={handleCellDoubleClick}
+                                  onSave={handleInlineSave}
+                                  onCancel={handleInlineCancel}
+                                  onContextMenu={handleRowContextMenu}
+                                  onCellMouseDown={handleCellMouseDown}
+                                  onCellMouseEnter={handleCellMouseEnter}
+                                  isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
+                                  onRowToggle={handleRowToggle}
+                                  onRowMouseDown={handleRowMouseDown}
+                                  onRowMouseEnter={handleRowMouseEnter}
+                                  runningCount={runningByRowId[row.id] ?? 0}
+                                  hasWorkflowColumns={hasWorkflowColumns}
+                                  numRegionWidth={numRegionWidth}
+                                  onStopRow={onStopRow}
+                                  onRunRow={onRunRow}
+                                  workflowGroups={tableWorkflowGroups}
+                                  activeDispatches={activeDispatches}
+                                  pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
+                                  lastPinnedColKey={lastPinnedColKey}
+                                  findMatchColumns={findMatchColumnsByRowId.get(row.id)}
+                                  expandedReference={rowReference}
+                                  onReferenceClick={handleReferenceClick}
+                                />
+                                {rowReference ? (
+                                  <ReferenceRowPreview
+                                    key={`${rowReference.referenceTableId}:${rowReference.referenceRowId}`}
+                                    workspaceId={workspaceId}
+                                    referenceTableId={rowReference.referenceTableId}
+                                    referenceRowId={rowReference.referenceRowId}
+                                    colSpan={displayColumns.length + 1}
+                                  />
+                                ) : null}
+                              </Fragment>
                             )
                           })}
                           {paddingBottom > 0 && (

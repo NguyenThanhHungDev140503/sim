@@ -15,6 +15,7 @@ import {
   columnNameIssue,
   drainTargetForChip,
   horizontalEdgeScrollVelocity,
+  isSameReferencePreviewTarget,
   selectedColumnIds,
 } from './utils'
 
@@ -26,6 +27,23 @@ function columns(count: number): DisplayColumn[] {
 }
 
 const rowIds = (count: number) => Array.from({ length: count }, (_, i) => `r${i}`)
+
+describe('isSameReferencePreviewTarget', () => {
+  const target = {
+    sourceRowId: 'source-row',
+    sourceColumnKey: 'account-column',
+    referenceTableId: 'accounts-table',
+    referenceRowId: 'account-row',
+  }
+
+  it('matches only the same source cell and referenced row', () => {
+    expect(isSameReferencePreviewTarget(target, target)).toBe(true)
+    expect(isSameReferencePreviewTarget(null, target)).toBe(false)
+    for (const key of Object.keys(target) as Array<keyof typeof target>) {
+      expect(isSameReferencePreviewTarget({ ...target, [key]: 'different' }, target)).toBe(false)
+    }
+  })
+})
 
 describe('horizontalEdgeScrollVelocity', () => {
   const getVelocity = (pointerX: number) =>

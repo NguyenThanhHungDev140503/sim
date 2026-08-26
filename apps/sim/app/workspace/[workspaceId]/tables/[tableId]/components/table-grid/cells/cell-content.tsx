@@ -1,9 +1,13 @@
 'use client'
 
 import type { RowExecutionMetadata } from '@/lib/table'
+import {
+  CellRender,
+  type ReferenceCellAction,
+  resolveCellRender,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/cell-render'
 import type { SaveReason } from '../../../types'
 import type { DisplayColumn } from '../types'
-import { CellRender, resolveCellRender } from './cell-render'
 import { InlineEditor } from './inline-editors'
 
 interface CellContentProps {
@@ -25,6 +29,8 @@ interface CellContentProps {
   waitingOnLabels?: string[]
   /** Column is an enrichment output — a completed-but-empty cell renders "Not found". */
   isEnrichmentOutput?: boolean
+  /** Opens the inline row preview for a populated Reference cell. */
+  referenceAction?: ReferenceCellAction
 }
 
 /**
@@ -44,6 +50,7 @@ export function CellContent({
   onCancel,
   waitingOnLabels,
   isEnrichmentOutput,
+  referenceAction,
 }: CellContentProps) {
   const kind = resolveCellRender({
     value,
@@ -67,7 +74,7 @@ export function CellContent({
           />
         </div>
       )}
-      <CellRender kind={kind} isEditing={isEditing} />
+      <CellRender kind={kind} isEditing={isEditing} referenceAction={referenceAction} />
     </>
   )
 }
