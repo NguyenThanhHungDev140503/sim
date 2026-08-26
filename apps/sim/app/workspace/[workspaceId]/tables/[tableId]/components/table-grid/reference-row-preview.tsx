@@ -114,7 +114,10 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
     )
   } else {
     content = (
-      <div role='table' className='grid h-full w-full min-w-max grid-rows-2 text-small'>
+      <div
+        role='table'
+        className='grid h-full w-full min-w-max cursor-default select-none grid-rows-2 text-small'
+      >
         <div role='row' className='flex min-w-max'>
           {columns.map((column) => (
             <div
@@ -140,7 +143,7 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
               key={column.key}
               className='flex w-40 min-w-40 max-w-60 items-center border-[var(--border)] border-r px-2 text-[var(--text-primary)]'
             >
-              <div className='max-w-56 overflow-hidden text-ellipsis whitespace-nowrap'>
+              <div className='w-full min-w-0 max-w-56 overflow-clip text-ellipsis whitespace-nowrap'>
                 <CellContent
                   value={row.data[column.key]}
                   column={column}

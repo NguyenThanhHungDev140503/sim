@@ -141,10 +141,21 @@ describe('ReferenceRowPreview', () => {
     const subtable = container.querySelector('[role="table"]')
     expect(subtable?.className).toContain('w-full')
     expect(subtable?.className).toContain('h-full')
+    expect(subtable?.className).toContain('cursor-default')
+    expect(subtable?.className).toContain('select-none')
     expect(subtable?.className).toContain('grid-rows-2')
     expect(subtable?.querySelectorAll('[role="row"]')).toHaveLength(2)
     expect(subtable?.querySelectorAll('[role="columnheader"]')).toHaveLength(2)
     expect(subtable?.querySelectorAll('[role="cell"]')).toHaveLength(2)
+    const dataValueWrappers = subtable?.querySelectorAll('[role="cell"] > div') ?? []
+    expect(
+      Array.from(dataValueWrappers).every(
+        (node) =>
+          node.classList.contains('w-full') &&
+          node.classList.contains('min-w-0') &&
+          node.classList.contains('overflow-clip')
+      )
+    ).toBe(true)
     const subtableViewport = container.querySelector('.overscroll-x-contain')
     expect(subtableViewport?.className).toContain('overflow-x-auto')
     expect(subtableViewport?.className).toContain('overflow-y-hidden')
