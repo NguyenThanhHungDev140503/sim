@@ -1,8 +1,10 @@
 'use client'
 
 import { memo, type ReactNode, useMemo } from 'react'
+import { buttonVariants } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
+import Link from 'next/link'
 import { columnTypeById } from '@/lib/table/column-types'
 import { CellContent } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells'
 import { ColumnTypeIcon } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/column-type-icon'
@@ -10,12 +12,12 @@ import { expandToDisplayColumns } from '@/app/workspace/[workspaceId]/tables/[ta
 import { useTable, useTableRow } from '@/hooks/queries/tables'
 
 /**
- * Must match the sticky anchor's `h-[184px]` class below because the row
+ * Must match the sticky anchor's `h-[144px]` class below because the row
  * virtualizer reserves this exact height. The zero-width anchor stays sticky
  * across the full table width, while its `100cqw` child uses TableGrid's
  * inline-size query container to cover the visible viewport.
  */
-export const REFERENCE_ROW_PREVIEW_HEIGHT = 184
+export const REFERENCE_ROW_PREVIEW_HEIGHT = 144
 
 const ReferenceIcon = columnTypeById('reference').icon
 
@@ -124,15 +126,24 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
         colSpan={colSpan}
         className='overflow-clip border-[var(--border)] border-r border-b bg-[var(--surface-2)] p-0'
       >
-        <div className='sticky left-0 h-[184px] w-0'>
+        <div className='sticky left-0 h-[144px] w-0'>
           <div className='flex h-full w-[100cqw] min-w-0 flex-col bg-[var(--surface-2)]'>
             <div className='flex h-9 shrink-0 items-center gap-1.5 px-3 text-[var(--text-primary)] text-small'>
               <ReferenceIcon className='size-[14px] text-[var(--text-icon)]' />
               <span className='font-medium'>{table?.name ?? 'Referenced table'}</span>
             </div>
 
-            <div className='min-h-0 flex-1 overflow-auto overscroll-x-contain bg-[var(--bg)]'>
+            <div className='h-[72px] shrink-0 overflow-auto overscroll-x-contain bg-[var(--bg)]'>
               {content}
+            </div>
+
+            <div className='flex h-9 shrink-0 items-center bg-[var(--bg)] px-3'>
+              <Link
+                href={`/workspace/${workspaceId}/tables/${referenceTableId}`}
+                className={buttonVariants({ variant: 'default', size: 'sm' })}
+              >
+                Go to table
+              </Link>
             </div>
           </div>
         </div>

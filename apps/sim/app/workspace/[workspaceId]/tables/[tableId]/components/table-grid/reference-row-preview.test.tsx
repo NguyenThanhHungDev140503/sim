@@ -107,6 +107,11 @@ describe('ReferenceRowPreview', () => {
     expect(container.textContent).toContain('Acme')
     expect(container.textContent).toContain('Enterprise')
     expect(container.textContent).not.toContain('Open in sub view')
+    const goToTableLink = Array.from(container.querySelectorAll('a')).find(
+      (link) => link.textContent === 'Go to table'
+    )
+    expect(goToTableLink?.getAttribute('href')).toBe('/workspace/workspace-1/tables/table-accounts')
+    expect(goToTableLink?.parentElement?.className).toContain('h-9')
     const previewCell = container.querySelector('tbody > tr > td')
     expect(previewCell?.className).toContain('overflow-clip')
     expect(previewCell?.className).toContain('border-r')
@@ -120,7 +125,7 @@ describe('ReferenceRowPreview', () => {
     expect(subtable?.className).toContain('border-t')
     expect(subtable?.className).toContain('border-b')
     expect(subtable?.querySelectorAll('col')).toHaveLength(3)
-    expect(container.querySelector('td > div > div > div:last-child')?.className).toContain(
+    expect(container.querySelector('.overscroll-x-contain')?.className).toContain(
       'overscroll-x-contain'
     )
     expect(container.innerHTML).not.toContain('rounded-md')
