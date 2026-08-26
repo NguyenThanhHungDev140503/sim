@@ -107,6 +107,9 @@ describe('ReferenceRowPreview', () => {
     expect(container.textContent).toContain('Acme')
     expect(container.textContent).toContain('Enterprise')
     expect(container.textContent).not.toContain('Open in sub view')
+    const previewCell = container.querySelector('tbody > tr > td')
+    expect(previewCell?.className).toContain('overflow-clip')
+    expect(previewCell?.className).toContain('border-r')
     expect(container.querySelector('td > div')?.className).toContain('sticky left-0')
     expect(container.querySelector('td > div')?.className).toContain('w-0')
     expect(container.querySelector('td > div')?.className).toContain(

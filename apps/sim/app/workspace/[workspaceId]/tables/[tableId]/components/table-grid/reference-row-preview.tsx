@@ -120,7 +120,10 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
 
   return (
     <tr>
-      <td colSpan={colSpan} className='border-[var(--border)] border-b bg-[var(--surface-2)] p-0'>
+      <td
+        colSpan={colSpan}
+        className='overflow-clip border-[var(--border)] border-r border-b bg-[var(--surface-2)] p-0'
+      >
         <div className='sticky left-0 h-[184px] w-0'>
           <div className='flex h-full w-[100cqw] min-w-0 flex-col bg-[var(--surface-2)]'>
             <div className='flex h-9 shrink-0 items-center gap-1.5 px-3 text-[var(--text-primary)] text-small'>
