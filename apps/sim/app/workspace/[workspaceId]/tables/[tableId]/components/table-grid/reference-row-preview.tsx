@@ -122,7 +122,7 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
     <tr>
       <td colSpan={colSpan} className='border-[var(--border)] border-b bg-[var(--surface-2)] p-0'>
         <div className='sticky left-0 h-[184px] w-0'>
-          <div className='flex h-full w-[100cqw] min-w-0 flex-col border-[var(--border)] border-t border-b bg-[var(--surface-2)]'>
+          <div className='flex h-full w-[100cqw] min-w-0 flex-col bg-[var(--surface-2)]'>
             <div className='flex h-9 shrink-0 items-center gap-1.5 px-3 text-[var(--text-primary)] text-small'>
               <ReferenceIcon className='size-[14px] text-[var(--text-icon)]' />
               <span className='font-medium'>{table?.name ?? 'Referenced table'}</span>
