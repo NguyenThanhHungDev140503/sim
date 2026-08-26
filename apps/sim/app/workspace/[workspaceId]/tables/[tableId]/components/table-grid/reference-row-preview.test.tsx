@@ -78,23 +78,41 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 function renderPreview() {
+  const preview = (
+    <table>
+      <tbody>
+        <ReferenceRowPreview
+          workspaceId='workspace-1'
+          referenceTableId='table-accounts'
+          referenceRowId='row-account-1'
+          colSpan={3}
+        />
+      </tbody>
+    </table>
+  )
+
   act(() => {
-    root.render(
-      <table>
-        <tbody>
-          <ReferenceRowPreview
-            workspaceId='workspace-1'
-            referenceTableId='table-accounts'
-            referenceRowId='row-account-1'
-            colSpan={3}
-          />
-        </tbody>
-      </table>
-    )
+    root.render(<div data-table-scroll>{preview}</div>)
   })
+}
+
+function horizontalRect(left: number, right: number): DOMRect {
+  return {
+    bottom: 0,
+    height: 0,
+    left,
+    right,
+    top: 0,
+    width: right - left,
+    x: left,
+    y: 0,
+    toJSON: () => ({}),
+  }
 }
 
 describe('ReferenceRowPreview', () => {
@@ -120,15 +138,131 @@ describe('ReferenceRowPreview', () => {
     expect(container.querySelector('td > div')?.className).toContain(
       `h-[${REFERENCE_ROW_PREVIEW_HEIGHT}px]`
     )
-    const subtable = container.querySelector('td table')
-    expect(subtable?.className).toContain('w-[100cqw]')
-    expect(subtable?.className).toContain('border-t')
-    expect(subtable?.className).toContain('border-b')
-    expect(subtable?.querySelectorAll('col')).toHaveLength(3)
-    expect(container.querySelector('.overscroll-x-contain')?.className).toContain(
-      'overscroll-x-contain'
-    )
+    const subtable = container.querySelector('[role="table"]')
+    expect(subtable?.className).toContain('w-full')
+    expect(subtable?.className).toContain('h-full')
+    expect(subtable?.className).toContain('grid-rows-2')
+    expect(subtable?.querySelectorAll('[role="row"]')).toHaveLength(2)
+    expect(subtable?.querySelectorAll('[role="columnheader"]')).toHaveLength(2)
+    expect(subtable?.querySelectorAll('[role="cell"]')).toHaveLength(2)
+    const subtableViewport = container.querySelector('.overscroll-x-contain')
+    expect(subtableViewport?.className).toContain('overflow-x-auto')
+    expect(subtableViewport?.className).toContain('overflow-y-hidden')
+    expect(subtableViewport?.className).toContain('border-y')
     expect(container.innerHTML).not.toContain('rounded-md')
+  })
+
+  it('sizes the inner scroller to the visible portion of the preview cell', () => {
+    let previewCellRight = 1_500
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      if (this.matches('[data-table-scroll]')) return horizontalRect(100, 920)
+      if (this.matches('tbody > tr > td')) return horizontalRect(-500, previewCellRight)
+      return horizontalRect(0, 0)
+    })
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function () {
+      return this.matches('[data-table-scroll]') ? 800 : 0
+    })
+    renderPreview()
+
+    const previewShell = container.querySelector<HTMLElement>('tbody > tr > td > div > div')
+    expect(previewShell?.style.getPropertyValue('--reference-preview-width')).toBe('800px')
+
+    previewCellRight = 780
+    const scrollRoot = container.querySelector<HTMLElement>('[data-table-scroll]')
+    if (!scrollRoot) throw new Error('Expected the table scroll root to be rendered')
+    scrollRoot.scrollLeft = 120
+    act(() => {
+      scrollRoot.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(previewShell?.style.getPropertyValue('--reference-preview-width')).toBe('680px')
+  })
+
+  it('updates on resize and releases its observer and scroll listener', () => {
+    let previewCellRight = 1_500
+    let resizeCallback: ResizeObserverCallback | null = null
+    let resizeObserver: ResizeObserver | null = null
+    const observe = vi.fn()
+    const disconnect = vi.fn()
+
+    class MockResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback
+        resizeObserver = this
+      }
+
+      observe(target: Element, options?: ResizeObserverOptions) {
+        observe(target, options)
+      }
+
+      unobserve() {}
+
+      disconnect() {
+        disconnect()
+      }
+    }
+
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      if (this.matches('[data-table-scroll]')) return horizontalRect(100, 900)
+      if (this.matches('tbody > tr > td')) return horizontalRect(-500, previewCellRight)
+      return horizontalRect(0, 0)
+    })
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function () {
+      return this.matches('[data-table-scroll]') ? 800 : 0
+    })
+    const registeredListeners: Array<{
+      target: EventTarget
+      type: string
+      listener: EventListenerOrEventListenerObject | null
+    }> = []
+    const removedListeners: typeof registeredListeners = []
+    const originalAddEventListener = EventTarget.prototype.addEventListener
+    const originalRemoveEventListener = EventTarget.prototype.removeEventListener
+    vi.spyOn(EventTarget.prototype, 'addEventListener').mockImplementation(
+      function (type, listener, options) {
+        registeredListeners.push({ target: this, type, listener })
+        originalAddEventListener.call(this, type, listener, options)
+      }
+    )
+    vi.spyOn(EventTarget.prototype, 'removeEventListener').mockImplementation(
+      function (type, listener, options) {
+        removedListeners.push({ target: this, type, listener })
+        originalRemoveEventListener.call(this, type, listener, options)
+      }
+    )
+
+    renderPreview()
+
+    const previewShell = container.querySelector<HTMLElement>('tbody > tr > td > div > div')
+    const scrollRoot = container.querySelector<HTMLElement>('[data-table-scroll]')
+    const previewCell = container.querySelector<HTMLElement>('tbody > tr > td')
+    if (!scrollRoot) throw new Error('Expected the table scroll root to be rendered')
+    if (!previewCell) throw new Error('Expected the preview cell to be rendered')
+    const scrollListener = registeredListeners.find(
+      ({ target, type }) => target === scrollRoot && type === 'scroll'
+    )?.listener
+    if (!scrollListener) throw new Error('Expected the scroll listener to be registered')
+    expect(observe).toHaveBeenCalledTimes(2)
+    expect(observe.mock.calls.some(([target]) => target === scrollRoot)).toBe(true)
+    expect(observe.mock.calls.some(([target]) => target === previewCell)).toBe(true)
+
+    previewCellRight = 780
+    if (!resizeCallback || !resizeObserver) {
+      throw new Error('Expected the resize observer to be initialized')
+    }
+    act(() => resizeCallback([], resizeObserver))
+
+    expect(previewShell?.style.getPropertyValue('--reference-preview-width')).toBe('680px')
+
+    act(() => root.render(null))
+
+    expect(disconnect).toHaveBeenCalledOnce()
+    expect(removedListeners).toContainEqual({
+      target: scrollRoot,
+      type: 'scroll',
+      listener: scrollListener,
+    })
   })
 
   it('shows no match when the stored row ID does not resolve', () => {

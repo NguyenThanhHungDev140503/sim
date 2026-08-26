@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, type ReactNode, useMemo } from 'react'
+import { memo, type ReactNode, useLayoutEffect, useMemo, useRef } from 'react'
 import { buttonVariants } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
@@ -14,8 +14,7 @@ import { useTable, useTableRow } from '@/hooks/queries/tables'
 /**
  * Must match the sticky anchor's `h-[144px]` class below because the row
  * virtualizer reserves this exact height. The zero-width anchor stays sticky
- * across the full table width, while its `100cqw` child uses TableGrid's
- * inline-size query container to cover the visible viewport.
+ * across the full table width without JavaScript-driven positioning.
  */
 export const REFERENCE_ROW_PREVIEW_HEIGHT = 144
 
@@ -34,6 +33,8 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
   referenceRowId,
   colSpan,
 }: ReferenceRowPreviewProps) {
+  const previewCellRef = useRef<HTMLTableCellElement>(null)
+  const previewShellRef = useRef<HTMLDivElement>(null)
   const tableQuery = useTable(workspaceId, referenceTableId)
   const rowQuery = useTableRow(workspaceId, referenceTableId, referenceRowId)
   const table = tableQuery.data
@@ -42,6 +43,48 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
     () => expandToDisplayColumns(table?.schema.columns ?? [], []),
     [table?.schema.columns]
   )
+
+  useLayoutEffect(() => {
+    const previewCell = previewCellRef.current
+    const previewShell = previewShellRef.current
+    const scrollRoot = previewCell?.closest<HTMLElement>('[data-table-scroll]')
+    if (!previewCell || !previewShell || !scrollRoot) return
+
+    let previousWidth: number | null = null
+    let previousScrollLeft = scrollRoot.scrollLeft
+
+    const updateWidth = () => {
+      const cellBounds = previewCell.getBoundingClientRect()
+      const viewportBounds = scrollRoot.getBoundingClientRect()
+      const viewportLeft = viewportBounds.left + scrollRoot.clientLeft
+      const viewportRight = viewportLeft + scrollRoot.clientWidth
+      const visibleLeft = Math.max(cellBounds.left, viewportLeft)
+      const visibleRight = Math.min(cellBounds.right, viewportRight)
+      const width = Math.max(0, visibleRight - visibleLeft)
+      if (width === previousWidth) return
+      previousWidth = width
+      previewShell.style.setProperty('--reference-preview-width', `${width}px`)
+    }
+
+    const handleScroll = () => {
+      if (scrollRoot.scrollLeft === previousScrollLeft) return
+      previousScrollLeft = scrollRoot.scrollLeft
+      updateWidth()
+    }
+
+    updateWidth()
+    scrollRoot.addEventListener('scroll', handleScroll, { passive: true })
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateWidth)
+    resizeObserver?.observe(scrollRoot)
+    resizeObserver?.observe(previewCell)
+
+    return () => {
+      scrollRoot.removeEventListener('scroll', handleScroll)
+      resizeObserver?.disconnect()
+    }
+  }, [])
 
   let content: ReactNode
   if (tableQuery.isLoading || rowQuery.isLoading) {
@@ -71,69 +114,68 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
     )
   } else {
     content = (
-      <table className='w-[100cqw] min-w-max border-collapse border-[var(--border)] border-t border-b text-small'>
-        <colgroup>
+      <div role='table' className='grid h-full w-full min-w-max grid-rows-2 text-small'>
+        <div role='row' className='flex min-w-max'>
           {columns.map((column) => (
-            <col key={column.key} className='w-40' />
+            <div
+              role='columnheader'
+              key={column.key}
+              className='flex w-40 min-w-40 items-center border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 font-normal'
+            >
+              <span className='flex min-w-0 items-center gap-1.5'>
+                <ColumnTypeIcon type={column.type} />
+                <span className='truncate text-[var(--text-secondary)]'>{column.name}</span>
+              </span>
+            </div>
           ))}
-          <col />
-        </colgroup>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                className='h-9 w-40 min-w-40 border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 text-left font-normal'
-              >
-                <span className='flex min-w-0 items-center gap-1.5'>
-                  <ColumnTypeIcon type={column.type} />
-                  <span className='truncate text-[var(--text-secondary)]'>{column.name}</span>
-                </span>
-              </th>
-            ))}
-            <th aria-hidden className='h-9 border-[var(--border)] border-b bg-[var(--bg)]' />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            {columns.map((column) => (
-              <td
-                key={column.key}
-                className='h-9 w-40 min-w-40 max-w-60 border-[var(--border)] border-r px-2 text-[var(--text-primary)]'
-              >
-                <div className='max-w-56 overflow-hidden text-ellipsis whitespace-nowrap'>
-                  <CellContent
-                    value={row.data[column.key]}
-                    column={column}
-                    workspaceId={workspaceId}
-                    isEditing={false}
-                    onSave={noop}
-                    onCancel={noop}
-                  />
-                </div>
-              </td>
-            ))}
-            <td aria-hidden className='h-9' />
-          </tr>
-        </tbody>
-      </table>
+          <div
+            aria-hidden
+            className='min-w-0 flex-1 border-[var(--border)] border-b bg-[var(--bg)]'
+          />
+        </div>
+        <div role='row' className='flex min-w-max'>
+          {columns.map((column) => (
+            <div
+              role='cell'
+              key={column.key}
+              className='flex w-40 min-w-40 max-w-60 items-center border-[var(--border)] border-r px-2 text-[var(--text-primary)]'
+            >
+              <div className='max-w-56 overflow-hidden text-ellipsis whitespace-nowrap'>
+                <CellContent
+                  value={row.data[column.key]}
+                  column={column}
+                  workspaceId={workspaceId}
+                  isEditing={false}
+                  onSave={noop}
+                  onCancel={noop}
+                />
+              </div>
+            </div>
+          ))}
+          <div aria-hidden className='min-w-0 flex-1 bg-[var(--bg)]' />
+        </div>
+      </div>
     )
   }
 
   return (
     <tr>
       <td
+        ref={previewCellRef}
         colSpan={colSpan}
         className='overflow-clip border-[var(--border)] border-r border-b bg-[var(--surface-2)] p-0'
       >
         <div className='sticky left-0 h-[144px] w-0'>
-          <div className='flex h-full w-[100cqw] min-w-0 flex-col bg-[var(--surface-2)]'>
+          <div
+            ref={previewShellRef}
+            className='flex h-full w-[var(--reference-preview-width,100cqw)] min-w-0 flex-col bg-[var(--surface-2)]'
+          >
             <div className='flex h-9 shrink-0 items-center gap-1.5 px-3 text-[var(--text-primary)] text-small'>
               <ReferenceIcon className='size-[14px] text-[var(--text-icon)]' />
               <span className='font-medium'>{table?.name ?? 'Referenced table'}</span>
             </div>
 
-            <div className='h-[72px] shrink-0 overflow-auto overscroll-x-contain bg-[var(--bg)]'>
+            <div className='h-[72px] shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-[var(--border)] border-y bg-[var(--bg)]'>
               {content}
             </div>
 
