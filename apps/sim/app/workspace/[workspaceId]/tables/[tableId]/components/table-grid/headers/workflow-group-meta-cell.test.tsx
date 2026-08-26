@@ -75,7 +75,11 @@ afterEach(() => {
   container.remove()
 })
 
-function renderMenu(column: ColumnDefinition, onGoToReferenceTable: (tableId: string) => void) {
+function renderMenu(
+  column: ColumnDefinition,
+  onGoToReferenceTable: (tableId: string) => void,
+  onRenameColumn?: (columnName: string) => void
+) {
   act(() => {
     root.render(
       <ColumnOptionsMenu
@@ -93,7 +97,9 @@ function renderMenu(column: ColumnDefinition, onGoToReferenceTable: (tableId: st
         onInsertLeft={vi.fn()}
         onInsertRight={vi.fn()}
         onDeleteColumn={vi.fn()}
+        onOpenConfig={vi.fn()}
         onGoToReferenceTable={onGoToReferenceTable}
+        onRenameColumn={onRenameColumn}
       />
     )
   })
@@ -133,5 +139,16 @@ describe('ColumnOptionsMenu Reference navigation', () => {
     renderMenu({ id: 'col-account', name: 'Account', type: 'reference' }, vi.fn())
 
     expect(findButton('Go to Reference Table')).toBeUndefined()
+  })
+})
+
+describe('ColumnOptionsMenu editing', () => {
+  it('starts inline rename from the column menu', () => {
+    const onRenameColumn = vi.fn()
+    renderMenu({ id: 'col-name', name: 'Name', type: 'string' }, vi.fn(), onRenameColumn)
+
+    act(() => findButton('Rename column')?.click())
+
+    expect(onRenameColumn).toHaveBeenCalledWith('col-name')
   })
 })

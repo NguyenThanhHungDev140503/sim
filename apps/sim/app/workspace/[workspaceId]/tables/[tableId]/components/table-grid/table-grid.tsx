@@ -10,6 +10,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { extractValidationIssues, isValidationError } from '@/lib/api/client/errors'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
 import { captureEvent } from '@/lib/posthog/client'
@@ -75,6 +76,7 @@ import {
   chipRowCount,
   classifyExecStatusMix,
   collectRowSnapshots,
+  columnNameIssue,
   computeNormalizedSelection,
   drainTargetForChip,
   type ExecStatusMix,
@@ -1481,6 +1483,8 @@ export function TableGrid({
   const handleFindCloseRef = useRef(handleFindClose)
   handleFindCloseRef.current = handleFindClose
 
+  const [renameError, setRenameError] = useState(false)
+
   const columnRename = useInlineRename({
     // `columnName` is the column id; record the prior display name + id so undo
     // restores the label (not the id) and targets the right column.
@@ -1488,9 +1492,51 @@ export function TableGrid({
       const oldName = columnsRef.current.find((c) => c.key === columnName)?.name ?? columnName
       pushUndoRef.current({ type: 'rename-column', oldName, newName, columnId: columnName })
       handleColumnRename(columnName, newName)
-      return updateColumnMutation.mutateAsync({ columnName, updates: { name: newName } })
+      return updateColumnMutation
+        .mutateAsync({ columnName, updates: { name: newName } })
+        .catch((error: unknown) => {
+          if (isValidationError(error)) {
+            toast.error(extractValidationIssues(error)[0]?.message ?? getErrorMessage(error))
+          }
+          setRenameError(true)
+          throw error
+        })
     },
   })
+  const columnRenameRef = useRef(columnRename)
+  columnRenameRef.current = columnRename
+
+  const handleRenameValueChange = useCallback((value: string) => {
+    setRenameError(false)
+    columnRenameRef.current.setEditValue(value)
+  }, [])
+
+  /** Keeps invalid names in the header so the user can correct them in place. */
+  const handleRenameSubmit = useCallback(() => {
+    const { editingId, editValue, submitRename } = columnRenameRef.current
+    const trimmedName = editValue.trim()
+    const currentColumn = columnsRef.current.find((column) => column.key === editingId)
+    if (trimmedName && currentColumn && trimmedName !== currentColumn.name) {
+      const issue = columnNameIssue(
+        trimmedName,
+        schemaColumnsRef.current
+          .filter((column) => getColumnId(column) !== editingId)
+          .map((column) => column.name)
+      )
+      if (issue) {
+        toast.error(issue)
+        setRenameError(true)
+        return
+      }
+    }
+    setRenameError(false)
+    void submitRename()
+  }, [])
+
+  const handleRenameCancel = useCallback(() => {
+    setRenameError(false)
+    columnRenameRef.current.cancelRename()
+  }, [])
 
   const toggleBooleanCell = useCallback(
     (rowId: string, columnName: string, currentValue: unknown) => {
@@ -3922,6 +3968,15 @@ export function TableGrid({
     [onOpenColumnConfig, onOpenWorkflowConfig, workflowGroupById]
   )
 
+  const handleRenameColumn = useCallback(
+    (columnName: string) => {
+      setRenameError(false)
+      const column = columnsRef.current.find((candidate) => candidate.key === columnName)
+      columnRename.startRename(columnName, column?.name ?? columnName)
+    },
+    [columnRename.startRename]
+  )
+
   const handleConfigureWorkflowGroup = useCallback(
     (groupId: string) => {
       const group = workflowGroupById.get(groupId)
@@ -4801,9 +4856,10 @@ export function TableGrid({
                             renameValue={
                               columnRename.editingId === column.key ? columnRename.editValue : ''
                             }
-                            onRenameValueChange={columnRename.setEditValue}
-                            onRenameSubmit={columnRename.submitRename}
-                            onRenameCancel={columnRename.cancelRename}
+                            renameError={renameError && columnRename.editingId === column.key}
+                            onRenameValueChange={handleRenameValueChange}
+                            onRenameSubmit={handleRenameSubmit}
+                            onRenameCancel={handleRenameCancel}
                             onColumnSelect={handleColumnSelect}
                             // Required props here, and the menu is already
                             // suppressed for non-editors by `readOnly`.
@@ -4828,6 +4884,9 @@ export function TableGrid({
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
+                            onRenameColumn={
+                              userPermissions.canEdit ? handleRenameColumn : undefined
+                            }
                             onGoToReferenceTable={handleGoToReferenceTable}
                             onViewWorkflow={handleViewWorkflow}
                             onSortColumn={onSortColumn}

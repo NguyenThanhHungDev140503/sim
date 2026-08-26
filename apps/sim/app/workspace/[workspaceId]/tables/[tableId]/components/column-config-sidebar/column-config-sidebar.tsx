@@ -6,6 +6,7 @@ import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   DEFAULT_CURRENCY_CODE,
   getCurrencyOptions,
@@ -16,7 +17,6 @@ import {
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useTablesList, useUpdateColumn } from '@/hooks/queries/tables'
-import { columnTypeOf } from '@/lib/table/column-types'
 import { SelectOptionsEditor } from '../select-field'
 import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
 
@@ -139,7 +139,7 @@ function ColumnConfigBody({
   const wantsOptions = isSelectType(typeInput)
   const wantsCurrency = typeInput === 'currency'
   const wantsReference = typeInput === 'reference'
-  const supportsUnique = columnTypeOf(typeInput).supportsUnique
+  const supportsUnique = columnTypeById(typeInput).supportsUnique
   const { data: workspaceTables = [] } = useTablesList(workspaceId, 'active', {
     enabled: wantsReference,
   })
