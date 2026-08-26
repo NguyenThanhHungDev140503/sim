@@ -35,6 +35,7 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
 }: ReferenceRowPreviewProps) {
   const previewCellRef = useRef<HTMLTableCellElement>(null)
   const previewShellRef = useRef<HTMLDivElement>(null)
+  const previewViewportRef = useRef<HTMLDivElement>(null)
   const tableQuery = useTable(workspaceId, referenceTableId)
   const rowQuery = useTableRow(workspaceId, referenceTableId, referenceRowId)
   const table = tableQuery.data
@@ -86,6 +87,20 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
     }
   }, [])
 
+  useLayoutEffect(() => {
+    const previewViewport = previewViewportRef.current
+    if (!previewViewport) return
+
+    const handleWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return
+      event.preventDefault()
+      previewViewport.scrollLeft += event.deltaX
+    }
+
+    previewViewport.addEventListener('wheel', handleWheel, { passive: false })
+    return () => previewViewport.removeEventListener('wheel', handleWheel)
+  }, [])
+
   let content: ReactNode
   if (tableQuery.isLoading || rowQuery.isLoading) {
     content = (
@@ -114,10 +129,7 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
     )
   } else {
     content = (
-      <div
-        role='table'
-        className='grid h-full w-full min-w-max cursor-default select-none grid-rows-2 text-small'
-      >
+      <div role='table' className='grid h-full w-full min-w-max grid-rows-2 text-small'>
         <div role='row' className='flex min-w-max'>
           {columns.map((column) => (
             <div
@@ -178,7 +190,10 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
               <span className='font-medium'>{table?.name ?? 'Referenced table'}</span>
             </div>
 
-            <div className='h-[72px] shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-[var(--border)] border-y bg-[var(--bg)]'>
+            <div
+              ref={previewViewportRef}
+              className='h-[72px] shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-[var(--border)] border-y bg-[var(--bg)]'
+            >
               {content}
             </div>
 

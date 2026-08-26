@@ -141,8 +141,8 @@ describe('ReferenceRowPreview', () => {
     const subtable = container.querySelector('[role="table"]')
     expect(subtable?.className).toContain('w-full')
     expect(subtable?.className).toContain('h-full')
-    expect(subtable?.className).toContain('cursor-default')
-    expect(subtable?.className).toContain('select-none')
+    expect(subtable?.className).not.toContain('cursor-default')
+    expect(subtable?.className).not.toContain('select-none')
     expect(subtable?.className).toContain('grid-rows-2')
     expect(subtable?.querySelectorAll('[role="row"]')).toHaveLength(2)
     expect(subtable?.querySelectorAll('[role="columnheader"]')).toHaveLength(2)
@@ -161,6 +161,41 @@ describe('ReferenceRowPreview', () => {
     expect(subtableViewport?.className).toContain('overflow-y-hidden')
     expect(subtableViewport?.className).toContain('border-y')
     expect(container.innerHTML).not.toContain('rounded-md')
+  })
+
+  it('scrolls horizontally when wheel input starts on cell text', () => {
+    renderPreview()
+
+    const subtableViewport = container.querySelector<HTMLElement>('.overscroll-x-contain')
+    const cellText = Array.from(container.querySelectorAll('[role="cell"] span')).find(
+      (element) => element.textContent === 'Acme'
+    )
+    if (!subtableViewport || !cellText) throw new Error('Expected the referenced row preview')
+
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 80,
+    })
+    act(() => {
+      cellText.dispatchEvent(wheelEvent)
+    })
+
+    expect(subtableViewport.scrollLeft).toBe(80)
+    expect(wheelEvent.defaultPrevented).toBe(true)
+
+    const verticalWheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 10,
+      deltaY: 80,
+    })
+    act(() => {
+      cellText.dispatchEvent(verticalWheelEvent)
+    })
+
+    expect(subtableViewport.scrollLeft).toBe(80)
+    expect(verticalWheelEvent.defaultPrevented).toBe(false)
   })
 
   it('sizes the inner scroller to the visible portion of the preview cell', () => {
@@ -248,12 +283,18 @@ describe('ReferenceRowPreview', () => {
     const previewShell = container.querySelector<HTMLElement>('tbody > tr > td > div > div')
     const scrollRoot = container.querySelector<HTMLElement>('[data-table-scroll]')
     const previewCell = container.querySelector<HTMLElement>('tbody > tr > td')
+    const previewViewport = container.querySelector<HTMLElement>('.overscroll-x-contain')
     if (!scrollRoot) throw new Error('Expected the table scroll root to be rendered')
     if (!previewCell) throw new Error('Expected the preview cell to be rendered')
+    if (!previewViewport) throw new Error('Expected the preview viewport to be rendered')
     const scrollListener = registeredListeners.find(
       ({ target, type }) => target === scrollRoot && type === 'scroll'
     )?.listener
+    const wheelListener = registeredListeners.find(
+      ({ target, type }) => target === previewViewport && type === 'wheel'
+    )?.listener
     if (!scrollListener) throw new Error('Expected the scroll listener to be registered')
+    if (!wheelListener) throw new Error('Expected the wheel listener to be registered')
     expect(observe).toHaveBeenCalledTimes(2)
     expect(observe.mock.calls.some(([target]) => target === scrollRoot)).toBe(true)
     expect(observe.mock.calls.some(([target]) => target === previewCell)).toBe(true)
@@ -273,6 +314,11 @@ describe('ReferenceRowPreview', () => {
       target: scrollRoot,
       type: 'scroll',
       listener: scrollListener,
+    })
+    expect(removedListeners).toContainEqual({
+      target: previewViewport,
+      type: 'wheel',
+      listener: wheelListener,
     })
   })
 
