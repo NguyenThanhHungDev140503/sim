@@ -12,6 +12,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import type { TableSchema } from '@/lib/table/types'
 
+const mocks = vi.hoisted(() => ({
+  assertColumnReferencesInWorkspace: vi.fn(),
+}))
+
+vi.mock('@/lib/table/column-types/registry.server', () => ({
+  assertColumnReferencesInWorkspace: mocks.assertColumnReferencesInWorkspace,
+}))
+
 vi.mock('@/lib/realtime/notify', () => ({
   notifyWorkspaceTablesChanged: vi.fn().mockResolvedValue(undefined),
 }))
@@ -58,6 +66,7 @@ describe('createTable schema invariants', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.assertColumnReferencesInWorkspace.mockResolvedValue(undefined)
   })
 
   /**
@@ -112,6 +121,44 @@ describe('createTable schema invariants', () => {
         createdBy: 'user-1',
       })
     )
+  })
+
+  it('validates Reference targets before persisting the new table', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [{ count: 0 }])
+
+    await create({
+      columns: [
+        {
+          name: 'account',
+          type: 'reference',
+          referenceTableId: 'tbl_accounts',
+        },
+      ],
+    } as TableSchema)
+
+    expect(mocks.assertColumnReferencesInWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      WORKSPACE_ID,
+      [expect.objectContaining({ referenceTableId: 'tbl_accounts' })]
+    )
+  })
+
+  it('does not insert a table when a Reference target is unavailable', async () => {
+    mocks.assertColumnReferencesInWorkspace.mockRejectedValueOnce({ code: 'not_found' })
+
+    await expect(
+      create({
+        columns: [
+          {
+            name: 'account',
+            type: 'reference',
+            referenceTableId: 'tbl_missing',
+          },
+        ],
+      } as TableSchema)
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
 

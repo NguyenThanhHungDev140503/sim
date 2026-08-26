@@ -29,6 +29,7 @@ import {
   TYPE_SPECIFIC_COLUMN_KEYS,
 } from '@/lib/table/column-types'
 import {
+  assertColumnReferencesInWorkspace,
   migrationFrom,
   migrationTo,
   writeBackCoercedCells,
@@ -192,6 +193,7 @@ export async function addTableColumn(
           `Invalid column: ${columnValidation.errors.join('; ')}`
         )
       }
+      await assertColumnReferencesInWorkspace(trx, table.workspaceId, [newColumn])
 
       const newColumnId = getColumnId(newColumn)
 
@@ -950,6 +952,7 @@ export async function updateColumnType(
         isSelectType,
         targetMultiple: !!targetMultiple,
       })
+      await assertColumnReferencesInWorkspace(trx, table.workspaceId, [convertedColumn])
 
       let incompatibleCount = 0
       let blankCount = 0
@@ -1465,8 +1468,8 @@ export async function updateColumnCurrency(
  * Changes the table targeted by a `reference` column.
  *
  * Cells already store plain row-ID strings, so changing the target updates only
- * the column schema. The target is deliberately not loaded or validated here;
- * dangling table and row IDs are valid reference values for now.
+ * the column schema. The target must be an active table in the same workspace;
+ * stored row IDs remain opaque strings and are not checked for existence.
  */
 export async function updateColumnReference(
   data: UpdateColumnReferenceData,
@@ -1505,6 +1508,7 @@ export async function updateColumnReference(
           `Invalid column: ${columnValidation.errors.join('; ')}`
         )
       }
+      await assertColumnReferencesInWorkspace(trx, table.workspaceId, [updatedColumn])
 
       const constrained = await applyConstraints(
         trx,
