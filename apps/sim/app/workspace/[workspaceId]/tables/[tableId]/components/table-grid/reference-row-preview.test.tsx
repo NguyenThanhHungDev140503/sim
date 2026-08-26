@@ -112,6 +112,8 @@ describe('ReferenceRowPreview', () => {
     expect(container.querySelector('td > div')?.className).toContain(
       `h-[${REFERENCE_ROW_PREVIEW_HEIGHT}px]`
     )
+    expect(container.querySelector('td > div > div')?.className).toContain('border-t')
+    expect(container.querySelector('td > div > div')?.className).toContain('border-b')
     const subtable = container.querySelector('td table')
     expect(subtable?.className).toContain('w-[100cqw]')
     expect(subtable?.className).toContain('border-t')
