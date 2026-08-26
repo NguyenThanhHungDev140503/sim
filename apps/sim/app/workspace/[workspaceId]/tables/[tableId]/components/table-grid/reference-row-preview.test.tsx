@@ -29,6 +29,7 @@ vi.mock('@/lib/table/column-types', () => ({
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
+  ArrowRight: () => null,
   Loader: () => null,
 }))
 
@@ -125,11 +126,18 @@ describe('ReferenceRowPreview', () => {
     expect(container.textContent).toContain('Acme')
     expect(container.textContent).toContain('Enterprise')
     expect(container.textContent).not.toContain('Open in sub view')
-    const goToTableLink = Array.from(container.querySelectorAll('a')).find(
-      (link) => link.textContent === 'Go to table'
-    )
+    const goToTableLink = container.querySelector('a[aria-label="Go to table"]')
     expect(goToTableLink?.getAttribute('href')).toBe('/workspace/workspace-1/tables/table-accounts')
+    expect(goToTableLink?.getAttribute('title')).toBe('Go to table')
+    expect(goToTableLink?.className).toContain('size-[20px]')
+    expect(goToTableLink?.className).toContain('hover-hover:bg-[var(--surface-active)]')
     expect(goToTableLink?.parentElement?.className).toContain('h-9')
+    expect(goToTableLink?.parentElement?.className).toContain('gap-1.5')
+    expect(goToTableLink?.previousElementSibling?.textContent).toBe('Accounts')
+    expect(goToTableLink?.textContent).toBe('')
+    const previewShell = container.querySelector<HTMLElement>('tbody > tr > td > div > div')
+    expect(previewShell?.lastElementChild?.className).toContain('h-9')
+    expect(previewShell?.lastElementChild?.querySelector('a')).toBeNull()
     const previewCell = container.querySelector('tbody > tr > td')
     expect(previewCell?.className).toContain('overflow-clip')
     expect(previewCell?.className).toContain('border-r')

@@ -2,7 +2,7 @@
 
 import { memo, type ReactNode, useLayoutEffect, useMemo, useRef } from 'react'
 import { buttonVariants } from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { ArrowRight, Loader } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
 import Link from 'next/link'
 import { columnTypeById } from '@/lib/table/column-types'
@@ -188,6 +188,14 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
             <div className='flex h-9 shrink-0 items-center gap-1.5 px-3 text-[var(--text-primary)] text-small'>
               <ReferenceIcon className='size-[14px] text-[var(--text-icon)]' />
               <span className='font-medium'>{table?.name ?? 'Referenced table'}</span>
+              <Link
+                href={`/workspace/${workspaceId}/tables/${referenceTableId}`}
+                aria-label='Go to table'
+                title='Go to table'
+                className={buttonVariants({ variant: 'quiet', size: 'icon' })}
+              >
+                <ArrowRight className='size-[14px]' />
+              </Link>
             </div>
 
             <div
@@ -197,14 +205,7 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
               {content}
             </div>
 
-            <div className='flex h-9 shrink-0 items-center bg-[var(--bg)] px-3'>
-              <Link
-                href={`/workspace/${workspaceId}/tables/${referenceTableId}`}
-                className={buttonVariants({ variant: 'default', size: 'sm' })}
-              >
-                Go to table
-              </Link>
-            </div>
+            <div aria-hidden className='h-9 shrink-0 bg-[var(--bg)]' />
           </div>
         </div>
       </td>
