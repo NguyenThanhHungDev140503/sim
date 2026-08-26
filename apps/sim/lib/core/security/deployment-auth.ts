@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -7,7 +8,7 @@ import {
   type DeploymentAuthKind,
   deploymentAuthCookieName,
   isEmailAllowed,
-  validateAuthToken,
+  readDeploymentAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -68,6 +69,7 @@ interface DeploymentAuthBody {
 
 export interface DeploymentAuthResult {
   authorized: boolean
+  authenticatedEmail?: string
   error?: string
   status?: number
   retryAfterMs?: number
@@ -95,11 +97,14 @@ export async function validateDeploymentAuth(
   if (authType !== 'sso') {
     const authCookie = request.cookies.get(deploymentAuthCookieName(cookiePrefix, resource.id))
 
-    if (
-      authCookie &&
-      validateAuthToken(authCookie.value, resource.id, authType, resource.password)
-    ) {
-      return { authorized: true }
+    if (authCookie) {
+      const claims = readDeploymentAuthToken(
+        authCookie.value,
+        resource.id,
+        authType,
+        resource.password
+      )
+      if (claims) return { authorized: true, ...claims }
     }
   }
 
@@ -230,7 +235,7 @@ export async function validateDeploymentAuth(
       const allowedEmails = (resource.allowedEmails as string[]) || []
 
       if (isEmailAllowed(userEmail, allowedEmails)) {
-        return { authorized: true }
+        return { authorized: true, authenticatedEmail: normalizeEmail(userEmail) }
       }
 
       return { authorized: false, error: 'Your email is not authorized to access this resource' }

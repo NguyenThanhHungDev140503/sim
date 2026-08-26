@@ -315,6 +315,14 @@ export const POST = withRouteHandler(
                   serviceId: 'chat',
                   workspaceId,
                   workflowId: deployment.workflowId,
+                  ...(authResult.authenticatedEmail
+                    ? {
+                        subject: {
+                          kind: 'authenticated_email' as const,
+                          email: authResult.authenticatedEmail,
+                        },
+                      }
+                    : {}),
                 },
                 selectedOutputs,
                 isSecureMode: true,

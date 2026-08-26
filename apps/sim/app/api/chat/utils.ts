@@ -13,9 +13,10 @@ export function setChatAuthCookie(
   response: NextResponse,
   chatId: string,
   type: string,
-  encryptedPassword?: string | null
+  encryptedPassword?: string | null,
+  authenticatedEmail?: string
 ): void {
-  setDeploymentAuthCookie(response, 'chat', chatId, type, encryptedPassword)
+  setDeploymentAuthCookie(response, 'chat', chatId, type, encryptedPassword, authenticatedEmail)
 }
 
 /**

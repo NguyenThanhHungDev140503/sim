@@ -24,11 +24,78 @@ function passwordSlot(encryptedPassword?: string | null): string {
 function generateAuthToken(
   deploymentId: string,
   type: string,
-  encryptedPassword?: string | null
+  encryptedPassword?: string | null,
+  authenticatedEmail?: string
 ): string {
-  const payload = `${deploymentId}:${type}:${Date.now()}:${passwordSlot(encryptedPassword)}`
+  if (type === 'email' && !authenticatedEmail) {
+    throw new Error('Email-auth deployment cookies require an authenticated email')
+  }
+  if (type !== 'email' && authenticatedEmail) {
+    throw new Error(`Deployment auth type ${type} cannot carry an authenticated email`)
+  }
+
+  const emailSlot = authenticatedEmail
+    ? Buffer.from(normalizeEmail(authenticatedEmail)).toString('base64url')
+    : ''
+  const payload = `${deploymentId}:${type}:${Date.now()}:${passwordSlot(encryptedPassword)}:${emailSlot}`
   const sig = signPayload(payload)
   return Buffer.from(`${payload}:${sig}`).toString('base64')
+}
+
+export interface DeploymentAuthTokenClaims {
+  authenticatedEmail?: string
+}
+
+/**
+ * Verifies and decodes an HMAC-signed deployment authentication token.
+ * Email-gated tokens carry the normalized email proven by OTP verification;
+ * all other auth modes reject an email claim.
+ */
+export function readDeploymentAuthToken(
+  token: string,
+  deploymentId: string,
+  authType: string,
+  encryptedPassword?: string | null
+): DeploymentAuthTokenClaims | null {
+  try {
+    const decoded = Buffer.from(token, 'base64').toString()
+    const lastColon = decoded.lastIndexOf(':')
+    if (lastColon === -1) return null
+
+    const payload = decoded.slice(0, lastColon)
+    const sig = decoded.slice(lastColon + 1)
+    if (!safeCompare(sig, signPayload(payload))) return null
+
+    const parts = payload.split(':')
+    if (parts.length !== 5) return null
+    const [storedId, storedType, timestamp, storedPwSlot, storedEmailSlot] = parts
+
+    if (storedId !== deploymentId || storedType !== authType) return null
+    if (storedPwSlot !== passwordSlot(encryptedPassword)) return null
+
+    const createdAt = Number(timestamp)
+    const now = Date.now()
+    const expireTime = 24 * 60 * 60 * 1000
+    if (!Number.isInteger(createdAt) || createdAt > now || now - createdAt > expireTime) return null
+
+    if (storedType === 'email') {
+      if (!storedEmailSlot) return null
+      const decodedEmail = Buffer.from(storedEmailSlot, 'base64url').toString()
+      const authenticatedEmail = normalizeEmail(decodedEmail)
+      if (
+        !authenticatedEmail ||
+        Buffer.from(authenticatedEmail).toString('base64url') !== storedEmailSlot
+      ) {
+        return null
+      }
+      return { authenticatedEmail }
+    }
+
+    if (storedEmailSlot) return null
+    return {}
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -42,41 +109,7 @@ export function validateAuthToken(
   authType: string,
   encryptedPassword?: string | null
 ): boolean {
-  try {
-    const decoded = Buffer.from(token, 'base64').toString()
-    const lastColon = decoded.lastIndexOf(':')
-    if (lastColon === -1) return false
-
-    const payload = decoded.slice(0, lastColon)
-    const sig = decoded.slice(lastColon + 1)
-
-    const expectedSig = signPayload(payload)
-    if (!safeCompare(sig, expectedSig)) {
-      return false
-    }
-
-    const parts = payload.split(':')
-    if (parts.length < 4) return false
-    const [storedId, storedType, timestamp, storedPwSlot] = parts
-
-    if (storedId !== deploymentId) return false
-
-    // Bind the cookie to the auth type so a token minted under one mode (e.g. a
-    // `public` share, which has an empty password slot) can't satisfy another
-    // mode (e.g. `email` OTP) after the share's auth type is changed.
-    if (storedType !== authType) return false
-
-    const expectedPwSlot = passwordSlot(encryptedPassword)
-    if (storedPwSlot !== expectedPwSlot) return false
-
-    const createdAt = Number.parseInt(timestamp)
-    const expireTime = 24 * 60 * 60 * 1000
-    if (Date.now() - createdAt > expireTime) return false
-
-    return true
-  } catch (_e) {
-    return false
-  }
+  return readDeploymentAuthToken(token, deploymentId, authType, encryptedPassword) !== null
 }
 
 /** The kind of deployed resource an auth cookie/token belongs to. */
@@ -95,9 +128,10 @@ export function setDeploymentAuthCookie(
   cookiePrefix: DeploymentAuthKind,
   deploymentId: string,
   authType: string,
-  encryptedPassword?: string | null
+  encryptedPassword?: string | null,
+  authenticatedEmail?: string
 ): void {
-  const token = generateAuthToken(deploymentId, authType, encryptedPassword)
+  const token = generateAuthToken(deploymentId, authType, encryptedPassword, authenticatedEmail)
   response.cookies.set({
     name: deploymentAuthCookieName(cookiePrefix, deploymentId),
     value: token,

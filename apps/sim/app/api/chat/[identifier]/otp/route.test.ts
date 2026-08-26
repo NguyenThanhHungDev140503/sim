@@ -483,6 +483,13 @@ describe('Chat OTP API Route', () => {
 
       expect(mockRedisGet).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
       expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
+      expect(mockSetChatAuthCookie).toHaveBeenCalledWith(
+        expect.anything(),
+        mockChatId,
+        'email',
+        undefined,
+        mockEmail
+      )
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
   })

@@ -237,7 +237,8 @@ describe('PUT /api/files/public/[token]/otp', () => {
       'file',
       'sh_1',
       'email',
-      null
+      null,
+      'user@acme.com'
     )
   })
 

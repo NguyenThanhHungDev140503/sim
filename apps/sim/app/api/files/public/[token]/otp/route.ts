@@ -207,7 +207,8 @@ export const PUT = withRouteHandler(
         'file',
         resolved.share.id,
         resolved.share.authType,
-        resolved.share.password
+        resolved.share.password,
+        email
       )
       logger.info(`[${requestId}] OTP verified for share ${resolved.share.id}`)
       return response

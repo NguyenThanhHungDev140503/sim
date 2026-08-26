@@ -18,14 +18,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockMergeSubblockStateWithValues,
   mockMergeSubBlockValues,
-  mockValidateAuthToken,
+  mockReadDeploymentAuthToken,
   mockSetDeploymentAuthCookie,
   mockIsEmailAllowed,
   mockCheckRateLimitDirect,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
-  mockValidateAuthToken: vi.fn().mockReturnValue(false),
+  mockReadDeploymentAuthToken: vi.fn().mockReturnValue(null),
   mockSetDeploymentAuthCookie: vi.fn(),
   mockIsEmailAllowed: vi.fn(),
   mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
@@ -57,7 +57,7 @@ vi.mock('@sim/workflow-persistence/subblocks', () => ({
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/core/security/deployment', () => ({
-  validateAuthToken: mockValidateAuthToken,
+  readDeploymentAuthToken: mockReadDeploymentAuthToken,
   setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
   isEmailAllowed: mockIsEmailAllowed,
   deploymentAuthCookieName: (prefix: string, id: string) => `${prefix}_auth_${id}`,
@@ -84,7 +84,7 @@ describe('Chat API Utils', () => {
 
   describe('Auth token utils', () => {
     it('should accept valid auth cookie via validateChatAuth', async () => {
-      mockValidateAuthToken.mockReturnValue(true)
+      mockReadDeploymentAuthToken.mockReturnValue({})
 
       const deployment = {
         id: 'chat-id',
@@ -100,7 +100,7 @@ describe('Chat API Utils', () => {
       } as any
 
       const result = await validateChatAuth('request-id', deployment, mockRequest)
-      expect(mockValidateAuthToken).toHaveBeenCalledWith(
+      expect(mockReadDeploymentAuthToken).toHaveBeenCalledWith(
         'valid-token',
         'chat-id',
         'password',
@@ -110,7 +110,7 @@ describe('Chat API Utils', () => {
     })
 
     it('should reject invalid auth cookie via validateChatAuth', async () => {
-      mockValidateAuthToken.mockReturnValue(false)
+      mockReadDeploymentAuthToken.mockReturnValue(null)
 
       const deployment = {
         id: 'chat-id',
@@ -128,6 +128,26 @@ describe('Chat API Utils', () => {
       const result = await validateChatAuth('request-id', deployment, mockRequest)
       expect(result.authorized).toBe(false)
     })
+
+    it('returns the authenticated email carried by a valid email-auth cookie', async () => {
+      mockReadDeploymentAuthToken.mockReturnValue({ authenticatedEmail: 'person@example.com' })
+
+      const deployment = {
+        id: 'chat-id',
+        authType: 'email',
+      }
+      const mockRequest = {
+        method: 'POST',
+        cookies: {
+          get: vi.fn().mockReturnValue({ value: 'valid-token' }),
+        },
+      } as any
+
+      await expect(validateChatAuth('request-id', deployment, mockRequest)).resolves.toEqual({
+        authorized: true,
+        authenticatedEmail: 'person@example.com',
+      })
+    })
   })
 
   describe('Cookie handling', () => {
@@ -143,7 +163,25 @@ describe('Chat API Utils', () => {
         'chat',
         'test-chat-id',
         'password',
+        undefined,
         undefined
+      )
+    })
+
+    it('forwards an authenticated email into the signed deployment cookie', () => {
+      const mockResponse = {
+        cookies: { set: vi.fn() },
+      } as unknown as NextResponse
+
+      setChatAuthCookie(mockResponse, 'test-chat-id', 'email', undefined, 'person@example.com')
+
+      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith(
+        mockResponse,
+        'chat',
+        'test-chat-id',
+        'email',
+        undefined,
+        'person@example.com'
       )
     })
   })
@@ -427,14 +465,17 @@ describe('Chat API Utils', () => {
       })
 
       it('authorizes execution when session email is allowlisted', async () => {
-        mockGetSession.mockResolvedValue({ user: { email: 'user@example.com' } })
+        mockGetSession.mockResolvedValue({ user: { email: 'User@Example.com' } })
         mockIsEmailAllowed.mockReturnValue(true)
 
         const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
           input: 'hello',
         })
 
-        expect(result.authorized).toBe(true)
+        expect(result).toEqual({
+          authorized: true,
+          authenticatedEmail: 'user@example.com',
+        })
       })
 
       it('rejects execution when session email is not allowlisted', async () => {
