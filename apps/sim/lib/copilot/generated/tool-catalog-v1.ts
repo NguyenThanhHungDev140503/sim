@@ -34,6 +34,7 @@ export interface ToolCatalogEntry {
     | 'browser_type'
     | 'browser_wait_for'
     | 'call_integration_tool'
+    | 'cancel_workflow_run'
     | 'connect_slack_bot'
     | 'cp'
     | 'create_empty_file'
@@ -71,6 +72,7 @@ export interface ToolCatalogEntry {
     | 'load_deployment'
     | 'load_integration_tool'
     | 'load_skill'
+    | 'load_slide_layout'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_knowledge_base'
@@ -162,6 +164,7 @@ export interface ToolCatalogEntry {
     | 'browser_type'
     | 'browser_wait_for'
     | 'call_integration_tool'
+    | 'cancel_workflow_run'
     | 'connect_slack_bot'
     | 'cp'
     | 'create_empty_file'
@@ -199,6 +202,7 @@ export interface ToolCatalogEntry {
     | 'load_deployment'
     | 'load_integration_tool'
     | 'load_skill'
+    | 'load_slide_layout'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_knowledge_base'
@@ -1609,6 +1613,31 @@ export const CallIntegrationTool: ToolCatalogEntry = {
     required: ['toolId', 'description', 'arguments'],
     type: 'object',
   },
+  requiresApproval: true,
+}
+
+export const CancelWorkflowRun: ToolCatalogEntry = {
+  id: 'cancel_workflow_run',
+  name: 'cancel_workflow_run',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      executionId: {
+        type: 'string',
+        description:
+          'Required workflow execution ID returned by run_workflow with async:true or found with query_logs. This identifies a workflow run, not an agent invocation or chat request.',
+      },
+      workflowId: {
+        type: 'string',
+        description:
+          'Workflow ID that owns the execution. Optional; omit it to target the current workflow. Pass it when cancelling a run from another workflow.',
+      },
+    },
+    required: ['executionId'],
+  },
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -3143,6 +3172,24 @@ export const LoadSkill: ToolCatalogEntry = {
   },
 }
 
+export const LoadSlideLayout: ToolCatalogEntry = {
+  id: 'load_slide_layout',
+  name: 'load_slide_layout',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description:
+          "Layout name exactly as it appears in the Layout Library index (e.g. 'metric-cards').",
+      },
+    },
+    required: ['name'],
+  },
+}
+
 export const ManageCredential: ToolCatalogEntry = {
   id: 'manage_credential',
   name: 'manage_credential',
@@ -4406,7 +4453,11 @@ export const Run: ToolCatalogEntry = {
         description: 'Pre-gathered context: workflow state, block IDs, input requirements.',
         type: 'string',
       },
-      request: { description: 'What to run or what logs to check.', type: 'string' },
+      request: {
+        description:
+          'What to run or cancel, or what logs to check. Include a known workflow executionId when cancelling.',
+        type: 'string',
+      },
     },
     required: ['request'],
     type: 'object',
@@ -7004,6 +7055,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserType.id]: BrowserType,
   [BrowserWaitFor.id]: BrowserWaitFor,
   [CallIntegrationTool.id]: CallIntegrationTool,
+  [CancelWorkflowRun.id]: CancelWorkflowRun,
   [ConnectSlackBot.id]: ConnectSlackBot,
   [Cp.id]: Cp,
   [CreateEmptyFile.id]: CreateEmptyFile,
@@ -7041,6 +7093,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
   [LoadSkill.id]: LoadSkill,
+  [LoadSlideLayout.id]: LoadSlideLayout,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageKnowledgeBase.id]: ManageKnowledgeBase,
