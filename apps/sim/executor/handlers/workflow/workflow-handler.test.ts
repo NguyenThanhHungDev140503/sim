@@ -749,7 +749,6 @@ describe('WorkflowBlockHandler', () => {
           userId: 'consumer-1',
           email: 'a@corp.com',
         },
-        userEmail: 'a@corp.com',
         workspaceId: 'workspace-consumer',
         workflowId: 'parent-workflow-id',
         executionId: 'exec-1',
@@ -772,7 +771,6 @@ describe('WorkflowBlockHandler', () => {
           userId: 'original-user',
           email: 'original@corp.com',
         },
-        userEmail: 'original@corp.com',
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
         executionId: 'exec-1',
@@ -857,7 +855,6 @@ describe('WorkflowBlockHandler', () => {
           userId: 'original-user',
           email: 'original@corp.com',
         },
-        userEmail: 'original@corp.com',
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
         executionMode: 'async',
@@ -872,7 +869,6 @@ describe('WorkflowBlockHandler', () => {
         workspaceId: 'workspace-parent',
         startRunMetadata: {
           subject: null,
-          userEmail: null,
           workspaceId: 'workspace-original',
           workflowId: 'workflow-original',
         },
@@ -913,7 +909,6 @@ describe('WorkflowBlockHandler', () => {
 
       expect(executorOptions).toHaveLength(1)
       expect(executorOptions[0].contextExtensions.startRunMetadata.subject).toBeNull()
-      expect(executorOptions[0].contextExtensions.startRunMetadata.userEmail).toBeNull()
       expect(mockGetUserEmailById).not.toHaveBeenCalled()
     })
 
@@ -923,7 +918,6 @@ describe('WorkflowBlockHandler', () => {
           kind: 'authenticated_email' as const,
           email: 'original@corp.com',
         },
-        userEmail: 'original@corp.com',
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
         executionMode: 'sync',
@@ -989,7 +983,6 @@ describe('WorkflowBlockHandler', () => {
           kind: 'authenticated_email',
           email: 'original@corp.com',
         },
-        userEmail: 'original@corp.com',
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
       })
@@ -1002,7 +995,6 @@ describe('WorkflowBlockHandler', () => {
           kind: 'authenticated_email' as const,
           email: 'original@corp.com',
         },
-        userEmail: 'original@corp.com',
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
       }
