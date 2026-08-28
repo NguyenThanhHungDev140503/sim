@@ -10,6 +10,7 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialAccessRequiredError } from '@/lib/credentials/application/authorized-credential-use-case'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import { OAuthProviderRevocationError } from '@/lib/credentials/oauth-accounts'
 
 export const credentialValidationParseOptions = {
   validationErrorResponse: (error: Parameters<typeof getValidationErrorMessage>[0]) =>
@@ -26,6 +27,13 @@ export const credentialValidationParseOptions = {
 export const internalCredentialErrorPolicy = extendInternalErrorPolicy(
   internalOrchestrationErrorPolicy,
   (error) => {
+    if (error instanceof OAuthProviderRevocationError) {
+      return internalErrorResponse(
+        503,
+        { error: error.message },
+        { 'Retry-After': ADMISSION_RETRY_AFTER_SECONDS.toString() }
+      )
+    }
     if (!(error instanceof CredentialProviderOperationError)) return null
     if (!error.providerUnavailable) {
       return internalErrorResponse(400, { error: error.message, code: error.providerErrorCode })

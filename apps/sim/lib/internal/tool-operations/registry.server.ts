@@ -694,6 +694,12 @@ const DOCUSIGN_TOOL_IDS = [
   'docusign_void_envelope',
 ] as const
 
+const QUICKBOOKS_TOOL_IDS = [
+  'quickbooks_add_attachment',
+  'quickbooks_download_attachment',
+  'quickbooks_download_transaction_pdf',
+] as const
+
 const THINKING_TOOL_IDS = ['thinking_tool'] as const
 
 const BITBUCKET_TOOL_IDS = [
@@ -1343,6 +1349,9 @@ registerFamily(handlerLoaders, ASANA_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, DOCUSIGN_TOOL_IDS, async () => {
   return (await import('@/lib/internal/docusign/execute-tool')).executeDocuSignTool
+})
+registerFamily(handlerLoaders, QUICKBOOKS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/quickbooks/execute-tool')).executeQuickBooksTool
 })
 registerFamily(handlerLoaders, THINKING_TOOL_IDS, async () => {
   return (await import('@/lib/internal/thinking/execute-tool')).executeThinkingTool

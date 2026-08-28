@@ -24,7 +24,11 @@ import {
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { getCredential, getOAuthToken, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
-import { completeOAuthCredentialToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import {
+  completeOAuthCredentialToken,
+  resolveCredentialToken,
+  validateOAuthCredentialContext,
+} from '@/lib/oauth/token-resolution'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
@@ -324,6 +328,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+
+    const contextValidation = validateOAuthCredentialContext(credential)
+    if (!contextValidation.ok) {
+      return NextResponse.json({ error: contextValidation.error }, { status: 401 })
     }
 
     if (!credential.accessToken) {

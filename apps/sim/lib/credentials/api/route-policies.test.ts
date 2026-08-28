@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { internalCredentialErrorPolicy } from '@/lib/credentials/api/route-policies'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import { OAuthProviderRevocationError } from '@/lib/credentials/oauth-accounts'
 
 function project(error: unknown) {
   return internalCredentialErrorPolicy.project(error)
@@ -32,6 +33,18 @@ describe('internalCredentialErrorPolicy', () => {
 
     expect(response?.status).toBe(400)
     expect(response?.headers).toBeUndefined()
+  })
+
+  it('renders an OAuth revocation outage as retryable without exposing the provider response', () => {
+    const response = project(
+      new OAuthProviderRevocationError('QuickBooks', new Error('upstream token detail'))
+    )
+
+    expect(response?.status).toBe(503)
+    expect(response?.headers).toEqual({ 'Retry-After': '5' })
+    expect(response?.body).toEqual({
+      error: 'Unable to revoke QuickBooks access. Please try again.',
+    })
   })
 
   it('defers anything that is not a provider failure to the base policy', () => {

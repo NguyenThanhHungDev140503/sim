@@ -20,6 +20,7 @@
  */
 
 import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
+import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
 export interface ErrorInfo {
   status?: number
@@ -416,6 +417,30 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'quickbooks-fault',
+    description: 'QuickBooks Online Fault.Error[] responses with authentication and rate guidance',
+    examples: ['QuickBooks Online Accounting API'],
+    extract: (errorInfo) => {
+      const status = errorInfo?.status
+      const fault = sanitizeQuickBooksFaultData(errorInfo?.data)
+      if (!fault) return null
+
+      const guidance =
+        status === 401
+          ? 'Reconnect the QuickBooks credential.'
+          : status === 403
+            ? 'Confirm the QuickBooks accounting scope and access to this company.'
+            : status === 429
+              ? 'QuickBooks rate limit reached; retry after the indicated delay.'
+              : ''
+      const statusMessage =
+        typeof status === 'number'
+          ? `QuickBooks request failed with HTTP ${status}.`
+          : 'QuickBooks request failed.'
+      return [statusMessage, guidance, formatQuickBooksFaultDetail(fault)].filter(Boolean).join(' ')
+    },
+  },
+  {
     id: 'prospeo-errors',
     description: 'Prospeo API error_code with optional filter_error and message details',
     examples: ['Prospeo API'],
@@ -592,6 +617,7 @@ export const ErrorExtractorId = {
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  QUICKBOOKS_FAULT: 'quickbooks-fault',
   PROSPEO_ERRORS: 'prospeo-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   PITCHBOOK_ERRORS: 'pitchbook-errors',

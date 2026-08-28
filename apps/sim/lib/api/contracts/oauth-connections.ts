@@ -119,6 +119,7 @@ const oauthTokenResponseSchema = z.object({
   apiDomain: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
+  realmId: z.string().optional(),
   authStyle: z.enum(['x-api-token']).optional(),
 })
 

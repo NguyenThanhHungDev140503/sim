@@ -8,9 +8,13 @@ import type { OAuthConnection } from '@/lib/api/contracts/oauth-connections'
 import { deleteCredentialRecord } from '@/lib/credentials/orchestration'
 import type { OAuthProvider } from '@/lib/oauth'
 import { parseProvider } from '@/lib/oauth'
+import { revokeQuickBooksToken } from '@/lib/oauth/quickbooks'
 import { providerIdsForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('CredentialOAuthAccounts')
+const MAX_DISCONNECT_ACCOUNTS = 100
+const MAX_DISCONNECT_CREDENTIALS = 1000
+const QUICKBOOKS_DISCONNECT_TIMEOUT_MS = 30_000
 
 interface GoogleIdToken {
   email?: string
@@ -111,6 +115,16 @@ export class OAuthDisconnectPartialFailureError extends Error {
   }
 }
 
+export class OAuthProviderRevocationError extends Error {
+  constructor(
+    readonly providerId: string,
+    cause: unknown
+  ) {
+    super(`Unable to revoke ${providerId} access. Please try again.`, { cause: toError(cause) })
+    this.name = 'OAuthProviderRevocationError'
+  }
+}
+
 export async function disconnectOAuthAccounts(params: DisconnectOAuthAccountsParams) {
   const accountFilter = params.accountId
     ? and(eq(account.userId, params.userId), eq(account.id, params.accountId))
@@ -123,14 +137,48 @@ export async function disconnectOAuthAccounts(params: DisconnectOAuthAccountsPar
             like(account.providerId, `${params.provider}-%`)
           )
         )
-  const targetAccounts = await db.select({ id: account.id }).from(account).where(accountFilter)
+  const targetAccounts = await db
+    .select({
+      id: account.id,
+      providerId: account.providerId,
+      accessToken: account.accessToken,
+      refreshToken: account.refreshToken,
+    })
+    .from(account)
+    .where(accountFilter)
+    .limit(MAX_DISCONNECT_ACCOUNTS + 1)
+  if (targetAccounts.length > MAX_DISCONNECT_ACCOUNTS) {
+    throw new OAuthProviderRevocationError(
+      params.provider,
+      new Error('Too many linked accounts to disconnect in one request')
+    )
+  }
   const targetAccountIds = targetAccounts.map((row) => row.id)
   if (targetAccountIds.length === 0) return { credentials: [] }
+
+  const quickBooksDisconnectSignal = AbortSignal.timeout(QUICKBOOKS_DISCONNECT_TIMEOUT_MS)
+  for (const targetAccount of targetAccounts) {
+    if (targetAccount.providerId !== 'quickbooks') continue
+    const token = targetAccount.refreshToken?.trim() || targetAccount.accessToken?.trim()
+    if (!token) continue
+    try {
+      await revokeQuickBooksToken(token, quickBooksDisconnectSignal)
+    } catch (error) {
+      throw new OAuthProviderRevocationError('QuickBooks', error)
+    }
+  }
 
   const credentialRows = await db
     .select()
     .from(credential)
     .where(inArray(credential.accountId, targetAccountIds))
+    .limit(MAX_DISCONNECT_CREDENTIALS + 1)
+  if (credentialRows.length > MAX_DISCONNECT_CREDENTIALS) {
+    throw new OAuthProviderRevocationError(
+      params.provider,
+      new Error('Too many linked credentials to disconnect in one request')
+    )
+  }
   const deletedCredentials: typeof credentialRows = []
   try {
     for (const credentialRow of credentialRows) {

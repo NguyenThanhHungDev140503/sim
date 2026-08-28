@@ -7,7 +7,7 @@ import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file
 export const REDACTED_MARKER = '[REDACTED]'
 export const TRUNCATED_MARKER = '[TRUNCATED]'
 
-const BYPASS_REDACTION_KEYS = new Set(['nextpagetoken'])
+const BYPASS_REDACTION_KEYS = new Set(['nextpagetoken', 'synctoken', 'subjectfromwebidentitytoken'])
 
 /** Keys that contain large binary/encoded data that should be truncated in logs */
 const LARGE_DATA_KEYS = new Set(['base64'])

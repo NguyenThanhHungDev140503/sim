@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   impersonateEmailSchema,
   type OAuthTokenResponse,
@@ -14,6 +15,7 @@ import {
   resolveOAuthAccountId,
   resolveServiceAccountToken,
 } from '@/lib/oauth/credential-service'
+import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
@@ -53,6 +55,30 @@ export interface ResolveCredentialTokenInput {
 export type ResolveCredentialTokenResult =
   | { ok: true; token: CredentialTokenPayload }
   | { ok: false; status: number; error: string; code?: string }
+
+interface OAuthCredentialContext {
+  providerId: string
+  accountId?: string | null
+}
+
+export function validateOAuthCredentialContext(
+  credential: OAuthCredentialContext
+): { ok: true } | { ok: false; error: string } {
+  if (credential.providerId !== 'quickbooks') return { ok: true }
+
+  try {
+    parseQuickBooksAccountId(credential.accountId ?? '')
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error: getErrorMessage(
+        error,
+        'QuickBooks company identity is invalid. Reconnect the QuickBooks credential.'
+      ),
+    }
+  }
+}
 
 /**
  * Emits the semantic "credential used" trail for one resolved credential.
@@ -98,7 +124,12 @@ function recordCredentialAccess(params: {
  * local regex — these values are injected into tool calls that carry the token.
  */
 function buildOAuthTokenPayload(
-  credential: { providerId: string; scope?: string | null; idToken?: string | null },
+  credential: {
+    providerId: string
+    accountId?: string | null
+    scope?: string | null
+    idToken?: string | null
+  },
   accessToken: string
 ): CredentialTokenPayload {
   const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
@@ -110,11 +141,17 @@ function buildOAuthTokenPayload(
     apiDomain = extractZohoDeskBaseFromScope(credential.scope)
   }
 
+  const realmId =
+    credential.providerId === 'quickbooks'
+      ? parseQuickBooksAccountId(credential.accountId ?? '').realmId
+      : undefined
+
   return {
     accessToken,
     idToken: credential.idToken || undefined,
     ...(instanceUrl && { instanceUrl }),
     ...(apiDomain && { apiDomain }),
+    ...(realmId && { realmId }),
   }
 }
 
@@ -125,13 +162,23 @@ function buildOAuthTokenPayload(
  */
 export async function completeOAuthCredentialToken(params: {
   requestId: string
-  credential: { providerId: string; scope?: string | null; idToken?: string | null }
+  credential: {
+    providerId: string
+    accountId?: string | null
+    scope?: string | null
+    idToken?: string | null
+  }
   resolvedCredentialId: string
   actorId?: string
   workspaceId: string | null
   auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
   const { requestId, credential, resolvedCredentialId, actorId, workspaceId, auditRequest } = params
+  const contextValidation = validateOAuthCredentialContext(credential)
+  if (!contextValidation.ok) {
+    return { ok: false, status: 401, error: contextValidation.error }
+  }
+
   try {
     const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolvedCredentialId)
 
