@@ -696,8 +696,19 @@ const DOCUSIGN_TOOL_IDS = [
 
 const QUICKBOOKS_TOOL_IDS = [
   'quickbooks_add_attachment',
+  'quickbooks_create_bill_payment',
   'quickbooks_download_attachment',
   'quickbooks_download_transaction_pdf',
+  'quickbooks_update_bill',
+  'quickbooks_update_bill_payment',
+  'quickbooks_update_credit_memo',
+  'quickbooks_update_customer_payment',
+  'quickbooks_update_employee',
+  'quickbooks_update_item',
+  'quickbooks_update_purchase',
+  'quickbooks_update_purchase_order',
+  'quickbooks_update_vendor',
+  'quickbooks_update_vendor_credit',
 ] as const
 
 const THINKING_TOOL_IDS = ['thinking_tool'] as const

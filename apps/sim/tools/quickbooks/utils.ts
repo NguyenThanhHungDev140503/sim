@@ -381,7 +381,7 @@ function findQuickBooksFault(data: unknown): SanitizedQuickBooksFault | null {
 }
 
 /**
- * Builds the error a `directExecution` tool throws for a failed QuickBooks
+ * Builds the error an internal operation throws for a failed QuickBooks
  * response.
  *
  * `parseQuickBooksJson` cannot be reused here: it rejects on a non-OK status
@@ -389,7 +389,7 @@ function findQuickBooksFault(data: unknown): SanitizedQuickBooksFault | null {
  * failed would be discarded. `entity` names the QuickBooks entity the call
  * targeted and only shapes the read label used for diagnostics.
  */
-export async function getQuickBooksDirectExecutionError(
+export async function getQuickBooksOperationError(
   response: Response,
   entity: QuickBooksQueryEntity,
   signal?: AbortSignal
@@ -477,7 +477,7 @@ export async function executeQuickBooksFullUpdate<
     }
   )
   if (!readResponse.ok) {
-    throw await getQuickBooksDirectExecutionError(readResponse, options.entity, options.signal)
+    throw await getQuickBooksOperationError(readResponse, options.entity, options.signal)
   }
   const { item } = await transformQuickBooksEntityResponse<T>(
     readResponse,
@@ -508,7 +508,7 @@ export async function executeQuickBooksFullUpdate<
     }
   )
   if (!updateResponse.ok) {
-    throw await getQuickBooksDirectExecutionError(updateResponse, options.entity, options.signal)
+    throw await getQuickBooksOperationError(updateResponse, options.entity, options.signal)
   }
   return transformQuickBooksMutationResponse<T>(
     updateResponse,

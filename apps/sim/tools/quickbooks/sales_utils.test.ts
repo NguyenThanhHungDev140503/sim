@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { executeQuickBooksUpdateCustomerPaymentOperation } from '@/lib/internal/quickbooks/provider-operations'
 
 vi.mock('@/lib/core/config/env', () => ({
   env: { QUICKBOOKS_ENV: 'production' },
@@ -10,7 +11,6 @@ import {
   parseQuickBooksInvoiceAllocations,
   parseQuickBooksSalesLines,
 } from '@/tools/quickbooks/sales_utils'
-import { quickbooksUpdateCustomerPaymentTool } from '@/tools/quickbooks/update_customer_payment'
 
 describe('QuickBooks sales monetary validation', () => {
   it.each([
@@ -129,7 +129,7 @@ describe('QuickBooks customer payment allocations', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
-      quickbooksUpdateCustomerPaymentTool.directExecution?.(
+      executeQuickBooksUpdateCustomerPaymentOperation(
         {
           accessToken: 'token',
           realmId: 'realm',
@@ -171,7 +171,7 @@ describe('QuickBooks customer payment allocations', () => {
       )
     vi.stubGlobal('fetch', fetchMock)
 
-    await quickbooksUpdateCustomerPaymentTool.directExecution?.(
+    await executeQuickBooksUpdateCustomerPaymentOperation(
       {
         accessToken: 'token',
         realmId: '123',

@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { buildQuickBooksUpdateSalesDocumentBody } from '@/tools/quickbooks/sales_utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksMutationResponse,
   QuickBooksSalesTransaction,
@@ -9,15 +9,9 @@ import {
   QUICKBOOKS_MUTATION_OUTPUTS,
   QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
 } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  executeQuickBooksFullUpdate,
-  getQuickBooksToolHeaders,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quickbooksUpdateCreditMemoTool: ToolConfig<
+export const quickbooksUpdateCreditMemoTool: InternalToolConfig<
   QuickBooksUpdateCreditMemoParams,
   QuickBooksMutationResponse<QuickBooksSalesTransaction>
 > = {
@@ -94,25 +88,9 @@ export const quickbooksUpdateCreditMemoTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'creditmemo').toString(),
-    method: 'POST',
-    headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) => buildQuickBooksUpdateSalesDocumentBody(params),
-    retry: { enabled: false },
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  directExecution: (params, signal) =>
-    executeQuickBooksFullUpdate({
-      params,
-      signal,
-      entity: 'CreditMemo',
-      resource: 'creditmemo',
-      recordId: params.transactionId,
-      syncToken: params.syncToken,
-      buildPatch: buildQuickBooksUpdateSalesDocumentBody,
-    }),
-  transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'CreditMemo'),
   outputs: {
     record: {
       type: 'json',

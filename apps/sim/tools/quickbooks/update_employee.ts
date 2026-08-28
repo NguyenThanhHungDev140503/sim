@@ -1,5 +1,5 @@
-import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksEmployee,
   QuickBooksMutationResponse,
@@ -9,46 +9,9 @@ import {
   QUICKBOOKS_EMPLOYEE_PROPERTIES,
   QUICKBOOKS_MUTATION_OUTPUTS,
 } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  executeQuickBooksFullUpdate,
-  getQuickBooksToolHeaders,
-  sanitizeQuickBooksEmployee,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import {
-  assertQuickBooksSparseUpdate,
-  optionalQuickBooksString,
-  parseQuickBooksAddress,
-  quickBooksActiveValue,
-  quickBooksEmailAddress,
-  quickBooksPhoneNumber,
-  requiredQuickBooksString,
-} from '@/tools/quickbooks/values'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-function buildQuickBooksUpdateEmployeeBody(
-  params: QuickBooksUpdateEmployeeParams
-): Record<string, unknown> {
-  const body = filterUndefined({
-    Id: requiredQuickBooksString(params.employeeId, 'employeeId'),
-    SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
-    sparse: true,
-    DisplayName: optionalQuickBooksString(params.displayName),
-    GivenName: optionalQuickBooksString(params.givenName),
-    FamilyName: optionalQuickBooksString(params.familyName),
-    PrimaryEmailAddr: quickBooksEmailAddress(params.primaryEmail),
-    PrimaryPhone: quickBooksPhoneNumber(params.primaryPhone),
-    PrimaryAddr: parseQuickBooksAddress(params.primaryAddress, 'primaryAddress'),
-    PrintOnCheckName: optionalQuickBooksString(params.printOnCheckName),
-    BillableTime: params.billableTime,
-    Active: quickBooksActiveValue(params.activeStatus),
-  }) as Record<string, unknown>
-  assertQuickBooksSparseUpdate(body)
-  return body
-}
-
-export const quickbooksUpdateEmployeeTool: ToolConfig<
+export const quickbooksUpdateEmployeeTool: InternalToolConfig<
   QuickBooksUpdateEmployeeParams,
   QuickBooksMutationResponse<QuickBooksEmployee>
 > = {
@@ -143,30 +106,9 @@ export const quickbooksUpdateEmployeeTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'employee').toString(),
-    method: 'POST',
-    headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: buildQuickBooksUpdateEmployeeBody,
-    retry: { enabled: false },
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  directExecution: (params, signal) =>
-    executeQuickBooksFullUpdate({
-      params,
-      signal,
-      entity: 'Employee',
-      resource: 'employee',
-      recordId: params.employeeId,
-      syncToken: params.syncToken,
-      buildPatch: buildQuickBooksUpdateEmployeeBody,
-      sanitize: sanitizeQuickBooksEmployee,
-    }),
-  transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksEmployee>(
-      response,
-      'Employee',
-      sanitizeQuickBooksEmployee
-    ),
   outputs: {
     record: {
       type: 'json',

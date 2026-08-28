@@ -12,6 +12,20 @@ import {
   QuickBooksInternalOperationError,
   type QuickBooksOperationContext,
 } from '@/lib/internal/quickbooks/operations'
+import {
+  executeQuickBooksCreateBillPaymentOperation,
+  executeQuickBooksUpdateBillOperation,
+  executeQuickBooksUpdateBillPaymentOperation,
+  executeQuickBooksUpdateCreditMemoOperation,
+  executeQuickBooksUpdateCustomerPaymentOperation,
+  executeQuickBooksUpdateEmployeeOperation,
+  executeQuickBooksUpdateItemOperation,
+  executeQuickBooksUpdatePurchaseOperation,
+  executeQuickBooksUpdatePurchaseOrderOperation,
+  executeQuickBooksUpdateVendorCreditOperation,
+  executeQuickBooksUpdateVendorOperation,
+} from '@/lib/internal/quickbooks/provider-operations'
+import { executeToolOperationImplementation } from '@/lib/internal/tool-operations/execute'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
@@ -63,6 +77,46 @@ function operationContext(request: InternalToolOperationCall): QuickBooksOperati
 
 export const executeQuickBooksTool: InternalToolOperationHandler = async (request) => {
   request.signal?.throwIfAborted()
+  switch (request.toolId) {
+    case 'quickbooks_create_bill_payment':
+      return executeToolOperationImplementation(
+        executeQuickBooksCreateBillPaymentOperation,
+        request
+      )
+    case 'quickbooks_update_bill':
+      return executeToolOperationImplementation(executeQuickBooksUpdateBillOperation, request)
+    case 'quickbooks_update_bill_payment':
+      return executeToolOperationImplementation(
+        executeQuickBooksUpdateBillPaymentOperation,
+        request
+      )
+    case 'quickbooks_update_credit_memo':
+      return executeToolOperationImplementation(executeQuickBooksUpdateCreditMemoOperation, request)
+    case 'quickbooks_update_customer_payment':
+      return executeToolOperationImplementation(
+        executeQuickBooksUpdateCustomerPaymentOperation,
+        request
+      )
+    case 'quickbooks_update_employee':
+      return executeToolOperationImplementation(executeQuickBooksUpdateEmployeeOperation, request)
+    case 'quickbooks_update_item':
+      return executeToolOperationImplementation(executeQuickBooksUpdateItemOperation, request)
+    case 'quickbooks_update_purchase':
+      return executeToolOperationImplementation(executeQuickBooksUpdatePurchaseOperation, request)
+    case 'quickbooks_update_purchase_order':
+      return executeToolOperationImplementation(
+        executeQuickBooksUpdatePurchaseOrderOperation,
+        request
+      )
+    case 'quickbooks_update_vendor':
+      return executeToolOperationImplementation(executeQuickBooksUpdateVendorOperation, request)
+    case 'quickbooks_update_vendor_credit':
+      return executeToolOperationImplementation(
+        executeQuickBooksUpdateVendorCreditOperation,
+        request
+      )
+  }
+
   if (!isQuickBooksFileToolId(request.toolId)) {
     return Response.json(
       { success: false, error: `Unsupported QuickBooks tool: ${request.toolId}` },

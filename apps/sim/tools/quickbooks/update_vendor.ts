@@ -1,53 +1,14 @@
-import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksMutationResponse,
   QuickBooksUpdateVendorParams,
   QuickBooksVendor,
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_MUTATION_OUTPUTS, QUICKBOOKS_VENDOR_PROPERTIES } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  executeQuickBooksFullUpdate,
-  getQuickBooksToolHeaders,
-  sanitizeQuickBooksVendor,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import {
-  assertQuickBooksSparseUpdate,
-  optionalQuickBooksString,
-  parseQuickBooksAddress,
-  quickBooksActiveValue,
-  quickBooksEmailAddress,
-  quickBooksPhoneNumber,
-  requiredQuickBooksString,
-} from '@/tools/quickbooks/values'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-function buildQuickBooksUpdateVendorBody(
-  params: QuickBooksUpdateVendorParams
-): Record<string, unknown> {
-  const body = filterUndefined({
-    Id: requiredQuickBooksString(params.vendorId, 'vendorId'),
-    SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
-    sparse: true,
-    DisplayName: optionalQuickBooksString(params.displayName),
-    CompanyName: optionalQuickBooksString(params.companyName),
-    GivenName: optionalQuickBooksString(params.givenName),
-    FamilyName: optionalQuickBooksString(params.familyName),
-    PrimaryEmailAddr: quickBooksEmailAddress(params.primaryEmail),
-    PrimaryPhone: quickBooksPhoneNumber(params.primaryPhone),
-    BillAddr: parseQuickBooksAddress(params.billingAddress, 'billingAddress'),
-    PrintOnCheckName: optionalQuickBooksString(params.printOnCheckName),
-    AcctNum: optionalQuickBooksString(params.accountNumber),
-    Vendor1099: params.vendor1099,
-    Active: quickBooksActiveValue(params.activeStatus),
-  }) as Record<string, unknown>
-  assertQuickBooksSparseUpdate(body)
-  return body
-}
-
-export const quickbooksUpdateVendorTool: ToolConfig<
+export const quickbooksUpdateVendorTool: InternalToolConfig<
   QuickBooksUpdateVendorParams,
   QuickBooksMutationResponse<QuickBooksVendor>
 > = {
@@ -154,30 +115,9 @@ export const quickbooksUpdateVendorTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'vendor').toString(),
-    method: 'POST',
-    headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: buildQuickBooksUpdateVendorBody,
-    retry: { enabled: false },
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  directExecution: (params, signal) =>
-    executeQuickBooksFullUpdate({
-      params,
-      signal,
-      entity: 'Vendor',
-      resource: 'vendor',
-      recordId: params.vendorId,
-      syncToken: params.syncToken,
-      buildPatch: buildQuickBooksUpdateVendorBody,
-      sanitize: sanitizeQuickBooksVendor,
-    }),
-  transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksVendor>(
-      response,
-      'Vendor',
-      sanitizeQuickBooksVendor
-    ),
   outputs: {
     record: {
       type: 'json',

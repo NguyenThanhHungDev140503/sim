@@ -1,8 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import {
-  buildQuickBooksUpdatePaymentBody,
-  parseQuickBooksInvoiceAllocations,
-} from '@/tools/quickbooks/sales_utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksMutationResponse,
   QuickBooksSalesTransaction,
@@ -12,17 +9,9 @@ import {
   QUICKBOOKS_MUTATION_OUTPUTS,
   QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
 } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  buildQuickBooksFullUpdateBody,
-  getQuickBooksDirectExecutionError,
-  getQuickBooksToolHeaders,
-  transformQuickBooksEntityResponse,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
+export const quickbooksUpdateCustomerPaymentTool: InternalToolConfig<
   QuickBooksUpdateCustomerPaymentParams,
   QuickBooksMutationResponse<QuickBooksSalesTransaction>
 > = {
@@ -118,83 +107,9 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'payment').toString(),
-    method: 'POST',
-    headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) => buildQuickBooksUpdatePaymentBody(params),
-    retry: { enabled: false },
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  /**
-   * QuickBooks only documents full Payment updates and treats Payment lines as
-   * all-or-none. Read the complete payment first, preserve its writable fields,
-   * and merge supplied allocations unless the caller explicitly replaces them.
-   */
-  directExecution: async (params, signal) => {
-    const paymentId = params.paymentId?.trim()
-    if (!paymentId) throw new Error('paymentId is required')
-
-    // Validate bounded allocations before the preservation read so malformed or
-    // duplicate invoice references never contact QuickBooks.
-    parseQuickBooksInvoiceAllocations(params.invoiceAllocations)
-
-    const syncToken = params.syncToken?.trim()
-    if (!syncToken) throw new Error('syncToken is required')
-    const readResponse = await fetch(
-      buildQuickBooksEntityUrl(params.realmId, 'payment', paymentId),
-      {
-        method: 'GET',
-        headers: getQuickBooksToolHeaders(params.accessToken),
-        signal,
-      }
-    )
-    if (!readResponse.ok) {
-      throw await getQuickBooksDirectExecutionError(readResponse, 'Payment', signal)
-    }
-    const { item: currentPayment } =
-      await transformQuickBooksEntityResponse<QuickBooksSalesTransaction>(
-        readResponse,
-        'Payment',
-        signal
-      )
-    const currentId = typeof currentPayment.Id === 'string' ? currentPayment.Id.trim() : ''
-    const currentSyncToken =
-      typeof currentPayment.SyncToken === 'string' ? currentPayment.SyncToken.trim() : ''
-    if (currentId !== paymentId) {
-      throw new Error('QuickBooks Payment read returned an unexpected record ID')
-    }
-    if (currentSyncToken !== syncToken) {
-      throw new Error(
-        `QuickBooks payment ${paymentId} changed since sync token ${syncToken} was read (current sync token ${currentSyncToken}). Re-read the payment and retry.`
-      )
-    }
-    signal?.throwIfAborted()
-
-    const patch = buildQuickBooksUpdatePaymentBody(params, currentPayment)
-    const fullBody = buildQuickBooksFullUpdateBody(
-      currentPayment as QuickBooksSalesTransaction & Record<string, unknown>,
-      patch,
-      paymentId,
-      syncToken
-    )
-
-    const updateResponse = await fetch(buildQuickBooksEntityUrl(params.realmId, 'payment'), {
-      method: 'POST',
-      headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-      body: JSON.stringify(fullBody),
-      signal,
-    })
-    if (!updateResponse.ok)
-      throw await getQuickBooksDirectExecutionError(updateResponse, 'Payment', signal)
-    return transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(
-      updateResponse,
-      'Payment',
-      undefined,
-      signal
-    )
-  },
-  transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'Payment'),
   outputs: {
     record: {
       type: 'json',

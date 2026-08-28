@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { buildQuickBooksUpdateBillBody } from '@/tools/quickbooks/purchasing_utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksMutationResponse,
   QuickBooksPurchasingTransaction,
@@ -9,15 +9,9 @@ import {
   QUICKBOOKS_MUTATION_OUTPUTS,
   QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
 } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  executeQuickBooksFullUpdate,
-  getQuickBooksToolHeaders,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quickbooksUpdateBillTool: ToolConfig<
+export const quickbooksUpdateBillTool: InternalToolConfig<
   QuickBooksUpdateBillParams,
   QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
 > = {
@@ -93,25 +87,9 @@ export const quickbooksUpdateBillTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (p) => buildQuickBooksEntityUrl(p.realmId, 'bill').toString(),
-    method: 'POST',
-    headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
-    body: buildQuickBooksUpdateBillBody,
-    retry: { enabled: false },
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  directExecution: (params, signal) =>
-    executeQuickBooksFullUpdate({
-      params,
-      signal,
-      entity: 'Bill',
-      resource: 'bill',
-      recordId: params.billId,
-      syncToken: params.syncToken,
-      buildPatch: buildQuickBooksUpdateBillBody,
-    }),
-  transformResponse: (r) =>
-    transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(r, 'Bill'),
   outputs: {
     record: {
       type: 'json',

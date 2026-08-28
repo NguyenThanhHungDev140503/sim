@@ -1,53 +1,14 @@
-import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksItem,
   QuickBooksMutationResponse,
   QuickBooksUpdateItemParams,
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_ITEM_PROPERTIES, QUICKBOOKS_MUTATION_OUTPUTS } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  executeQuickBooksFullUpdate,
-  getQuickBooksToolHeaders,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import {
-  assertQuickBooksSparseUpdate,
-  optionalQuickBooksString,
-  quickBooksActiveValue,
-  quickBooksReference,
-  requiredQuickBooksString,
-  validateQuickBooksOptionalNumber,
-} from '@/tools/quickbooks/values'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-function buildQuickBooksUpdateItemBody(
-  params: QuickBooksUpdateItemParams
-): Record<string, unknown> {
-  const body = filterUndefined({
-    Id: requiredQuickBooksString(params.itemId, 'itemId'),
-    SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
-    sparse: true,
-    Name: optionalQuickBooksString(params.name),
-    IncomeAccountRef: params.incomeAccountId
-      ? quickBooksReference(params.incomeAccountId, 'incomeAccountId')
-      : undefined,
-    Description: optionalQuickBooksString(params.description),
-    UnitPrice: validateQuickBooksOptionalNumber(params.unitPrice, 'unitPrice'),
-    PurchaseDesc: optionalQuickBooksString(params.purchaseDescription),
-    PurchaseCost: validateQuickBooksOptionalNumber(params.purchaseCost, 'purchaseCost'),
-    ExpenseAccountRef: params.expenseAccountId
-      ? quickBooksReference(params.expenseAccountId, 'expenseAccountId')
-      : undefined,
-    Taxable: params.taxable,
-    Active: quickBooksActiveValue(params.activeStatus),
-  }) as Record<string, unknown>
-  assertQuickBooksSparseUpdate(body)
-  return body
-}
-
-export const quickbooksUpdateItemTool: ToolConfig<
+export const quickbooksUpdateItemTool: InternalToolConfig<
   QuickBooksUpdateItemParams,
   QuickBooksMutationResponse<QuickBooksItem>
 > = {
@@ -142,25 +103,9 @@ export const quickbooksUpdateItemTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'item').toString(),
-    method: 'POST',
-    headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: buildQuickBooksUpdateItemBody,
-    retry: { enabled: false },
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  directExecution: (params, signal) =>
-    executeQuickBooksFullUpdate({
-      params,
-      signal,
-      entity: 'Item',
-      resource: 'item',
-      recordId: params.itemId,
-      syncToken: params.syncToken,
-      buildPatch: buildQuickBooksUpdateItemBody,
-    }),
-  transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksItem>(response, 'Item'),
   outputs: {
     record: {
       type: 'json',

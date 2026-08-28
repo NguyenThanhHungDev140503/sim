@@ -6,7 +6,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   addAttachment: vi.fn(),
+  createBillPayment: vi.fn(),
   downloadDocument: vi.fn(),
+  updateBill: vi.fn(),
+  updateBillPayment: vi.fn(),
+  updateCreditMemo: vi.fn(),
+  updateCustomerPayment: vi.fn(),
+  updateEmployee: vi.fn(),
+  updateItem: vi.fn(),
+  updatePurchase: vi.fn(),
+  updatePurchaseOrder: vi.fn(),
+  updateVendor: vi.fn(),
+  updateVendorCredit: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/quickbooks/operations', () => ({
@@ -20,6 +31,20 @@ vi.mock('@/lib/internal/quickbooks/operations', () => ({
   },
   executeQuickBooksAddAttachment: mocks.addAttachment,
   executeQuickBooksDownloadDocument: mocks.downloadDocument,
+}))
+
+vi.mock('@/lib/internal/quickbooks/provider-operations', () => ({
+  executeQuickBooksCreateBillPaymentOperation: mocks.createBillPayment,
+  executeQuickBooksUpdateBillOperation: mocks.updateBill,
+  executeQuickBooksUpdateBillPaymentOperation: mocks.updateBillPayment,
+  executeQuickBooksUpdateCreditMemoOperation: mocks.updateCreditMemo,
+  executeQuickBooksUpdateCustomerPaymentOperation: mocks.updateCustomerPayment,
+  executeQuickBooksUpdateEmployeeOperation: mocks.updateEmployee,
+  executeQuickBooksUpdateItemOperation: mocks.updateItem,
+  executeQuickBooksUpdatePurchaseOperation: mocks.updatePurchase,
+  executeQuickBooksUpdatePurchaseOrderOperation: mocks.updatePurchaseOrder,
+  executeQuickBooksUpdateVendorCreditOperation: mocks.updateVendorCredit,
+  executeQuickBooksUpdateVendorOperation: mocks.updateVendor,
 }))
 
 import { executeQuickBooksTool } from '@/lib/internal/quickbooks/execute-tool'
@@ -50,6 +75,55 @@ describe('executeQuickBooksTool', () => {
     vi.clearAllMocks()
     mocks.addAttachment.mockResolvedValue({ attachmentId: 'attachment-1' })
     mocks.downloadDocument.mockResolvedValue({ attachmentId: 'attachment-1' })
+    for (const operation of [
+      mocks.createBillPayment,
+      mocks.updateBill,
+      mocks.updateBillPayment,
+      mocks.updateCreditMemo,
+      mocks.updateCustomerPayment,
+      mocks.updateEmployee,
+      mocks.updateItem,
+      mocks.updatePurchase,
+      mocks.updatePurchaseOrder,
+      mocks.updateVendor,
+      mocks.updateVendorCredit,
+    ]) {
+      operation.mockResolvedValue({ success: true, output: { id: 'entity-1' } })
+    }
+  })
+
+  it.each([
+    ['quickbooks_create_bill_payment', mocks.createBillPayment],
+    ['quickbooks_update_bill', mocks.updateBill],
+    ['quickbooks_update_bill_payment', mocks.updateBillPayment],
+    ['quickbooks_update_credit_memo', mocks.updateCreditMemo],
+    ['quickbooks_update_customer_payment', mocks.updateCustomerPayment],
+    ['quickbooks_update_employee', mocks.updateEmployee],
+    ['quickbooks_update_item', mocks.updateItem],
+    ['quickbooks_update_purchase', mocks.updatePurchase],
+    ['quickbooks_update_purchase_order', mocks.updatePurchaseOrder],
+    ['quickbooks_update_vendor', mocks.updateVendor],
+    ['quickbooks_update_vendor_credit', mocks.updateVendorCredit],
+  ])('dispatches %s through its internal provider operation', async (toolId, operation) => {
+    const controller = new AbortController()
+    const operationRequest = request({
+      toolId,
+      input: { accessToken: 'token', realmId: '123', entityId: 'entity-1' },
+      signal: controller.signal,
+    })
+
+    const response = await executeQuickBooksTool(operationRequest)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      output: { id: 'entity-1' },
+    })
+    expect(operation).toHaveBeenCalledWith(
+      operationRequest.input,
+      controller.signal,
+      operationRequest.context
+    )
   })
 
   it('dispatches downloads with trusted execution context', async () => {

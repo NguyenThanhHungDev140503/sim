@@ -1,7 +1,6 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { buildQuickBooksCreateBillPaymentBody } from '@/tools/quickbooks/purchasing_utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  QuickBooksAccount,
   QuickBooksCreateBillPaymentParams,
   QuickBooksMutationResponse,
   QuickBooksPurchasingTransaction,
@@ -10,38 +9,9 @@ import {
   QUICKBOOKS_MUTATION_OUTPUTS,
   QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
 } from '@/tools/quickbooks/types'
-import {
-  addQuickBooksRequestId,
-  buildQuickBooksEntityUrl,
-  getQuickBooksDirectExecutionError,
-  getQuickBooksToolHeaders,
-  transformQuickBooksEntityResponse,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-function assertCompatiblePaymentAccount(
-  account: QuickBooksAccount,
-  paymentType: QuickBooksCreateBillPaymentParams['paymentType'],
-  paymentAccountId: string
-): void {
-  const accountId = account.Id.trim()
-  if (accountId !== paymentAccountId) {
-    throw new Error('QuickBooks returned a different payment account than requested')
-  }
-  if (account.Active === false) {
-    throw new Error('QuickBooks payment account is inactive. Select an active account.')
-  }
-
-  const expectedAccountType = paymentType === 'check' ? 'Bank' : 'Credit Card'
-  if (account.AccountType !== expectedAccountType) {
-    throw new Error(
-      `${paymentType === 'check' ? 'Check' : 'Credit-card'} Bill Payments require a QuickBooks ${expectedAccountType} account. Account ${paymentAccountId} is ${account.AccountType || 'missing an account type'}.`
-    )
-  }
-}
-
-export const quickbooksCreateBillPaymentTool: ToolConfig<
+export const quickbooksCreateBillPaymentTool: InternalToolConfig<
   QuickBooksCreateBillPaymentParams,
   QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
 > = {
@@ -118,65 +88,9 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (p) =>
-      addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(p.realmId, 'billpayment'),
-        p.requestId
-      ).toString(),
-    method: 'POST',
-    headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
-    body: buildQuickBooksCreateBillPaymentBody,
-    retry: { enabled: false },
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  directExecution: async (params, signal) => {
-    const body = buildQuickBooksCreateBillPaymentBody(params)
-    const paymentAccountId = params.paymentAccountId.trim()
-    if (!paymentAccountId) throw new Error('paymentAccountId is required')
-
-    const accountResponse = await fetch(
-      buildQuickBooksEntityUrl(params.realmId, 'account', paymentAccountId),
-      {
-        method: 'GET',
-        headers: getQuickBooksToolHeaders(params.accessToken),
-        signal,
-      }
-    )
-    if (!accountResponse.ok) {
-      throw await getQuickBooksDirectExecutionError(accountResponse, 'BillPayment', signal)
-    }
-    const { item: account } = await transformQuickBooksEntityResponse<QuickBooksAccount>(
-      accountResponse,
-      'Account',
-      signal
-    )
-    assertCompatiblePaymentAccount(account, params.paymentType, paymentAccountId)
-    signal?.throwIfAborted()
-
-    const paymentResponse = await fetch(
-      addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(params.realmId, 'billpayment'),
-        params.requestId
-      ),
-      {
-        method: 'POST',
-        headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-        body: JSON.stringify(body),
-        signal,
-      }
-    )
-    if (!paymentResponse.ok) {
-      throw await getQuickBooksDirectExecutionError(paymentResponse, 'BillPayment', signal)
-    }
-    return transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(
-      paymentResponse,
-      'BillPayment',
-      undefined,
-      signal
-    )
-  },
-  transformResponse: (r) =>
-    transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(r, 'BillPayment'),
   outputs: {
     record: {
       type: 'json',
