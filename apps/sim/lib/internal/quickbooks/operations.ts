@@ -4,9 +4,11 @@ import type {
   QuickBooksAddAttachmentBody,
   QuickBooksDownloadDocumentBody,
 } from '@/lib/api/contracts/tools/quickbooks'
+import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   assertContentLengthWithinLimit,
   assertKnownSizeWithinLimit,
+  readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
@@ -26,6 +28,7 @@ import {
   QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS,
   QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS,
   QUICKBOOKS_MAX_ATTACHMENT_BYTES,
+  QUICKBOOKS_TEMP_URL_MAX_BYTES,
   quickBooksDocumentSignal,
   sanitizeQuickBooksFileName,
   validateQuickBooksAttachmentFileType,
@@ -88,26 +91,62 @@ async function downloadQuickBooksAttachment(
     body.realmId,
     `download/${encodeURIComponent(body.attachmentId)}`
   )
-  const transferSignal = quickBooksDocumentSignal(signal, QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS)
-  const downloadResponse = await fetch(downloadUrl, {
+  const metadataSignal = quickBooksDocumentSignal(signal, QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS)
+  const downloadUrlResponse = await fetch(downloadUrl, {
     method: 'GET',
     headers: { ...buildQuickBooksHeaders(body.accessToken), Accept: '*/*' },
-    signal: transferSignal,
+    signal: metadataSignal,
   })
-  if (downloadResponse.status === 404) {
+  if (downloadUrlResponse.status === 404) {
     throw new Error('This QuickBooks attachment has no downloadable file')
   }
-  if (!downloadResponse.ok) throw await getQuickBooksDocumentError(downloadResponse, signal)
-  assertContentLengthWithinLimit(
-    downloadResponse.headers,
-    QUICKBOOKS_MAX_ATTACHMENT_BYTES,
-    'QuickBooks attachment file'
-  )
-  const buffer = await readResponseToBufferWithLimit(downloadResponse, {
-    maxBytes: QUICKBOOKS_MAX_ATTACHMENT_BYTES,
-    label: 'QuickBooks attachment file',
-    signal: transferSignal,
+  if (!downloadUrlResponse.ok) {
+    throw await getQuickBooksDocumentError(downloadUrlResponse, metadataSignal)
+  }
+  const temporaryUrlText = await readResponseTextWithLimit(downloadUrlResponse, {
+    maxBytes: QUICKBOOKS_TEMP_URL_MAX_BYTES,
+    label: 'QuickBooks attachment temporary URL response',
+    signal: metadataSignal,
   })
+  let temporaryUrl = temporaryUrlText.trim()
+  if (temporaryUrl.startsWith('"')) {
+    try {
+      const parsed = JSON.parse(temporaryUrl)
+      temporaryUrl = typeof parsed === 'string' ? parsed.trim() : ''
+    } catch {
+      throw new Error('QuickBooks returned a malformed attachment download URL')
+    }
+  }
+  if (!temporaryUrl) throw new Error('QuickBooks returned an empty attachment download URL')
+
+  const guarded = createSsrfGuardedFetchWithDispatcher({
+    maxResponseSize: QUICKBOOKS_MAX_ATTACHMENT_BYTES,
+  })
+  const transferSignal = quickBooksDocumentSignal(signal, QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS)
+  let downloadResponse: Response
+  let buffer: Buffer
+  try {
+    downloadResponse = await guarded.fetch(temporaryUrl, {
+      method: 'GET',
+      headers: { Accept: '*/*' },
+      signal: transferSignal,
+    })
+    if (!downloadResponse.ok) {
+      throw await getQuickBooksDocumentError(downloadResponse, transferSignal)
+    }
+    assertContentLengthWithinLimit(
+      downloadResponse.headers,
+      QUICKBOOKS_MAX_ATTACHMENT_BYTES,
+      'QuickBooks attachment file'
+    )
+    buffer = await readResponseToBufferWithLimit(downloadResponse, {
+      maxBytes: QUICKBOOKS_MAX_ATTACHMENT_BYTES,
+      label: 'QuickBooks attachment file',
+      signal: transferSignal,
+    })
+  } finally {
+    await guarded.dispatcher.close()
+  }
   if (buffer.length === 0) throw new Error('QuickBooks attachment file is empty')
 
   const fallbackName = `quickbooks-attachment-${body.attachmentId}`

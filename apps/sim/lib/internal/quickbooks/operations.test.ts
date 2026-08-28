@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   uploadCopilotFile: vi.fn(),
   uploadExecutionFile: vi.fn(),
+  guardedFetch: vi.fn(),
+  closeDispatcher: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/copilot', () => ({
@@ -13,6 +15,12 @@ vi.mock('@/lib/uploads/contexts/copilot', () => ({
 }))
 vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: mocks.uploadExecutionFile,
+}))
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  createSsrfGuardedFetchWithDispatcher: () => ({
+    fetch: mocks.guardedFetch,
+    dispatcher: { close: mocks.closeDispatcher },
+  }),
 }))
 vi.mock('@/tools/quickbooks/client', () => ({
   QUICKBOOKS_MAX_RESPONSE_BYTES: 8 * 1024 * 1024,
@@ -53,12 +61,18 @@ describe('QuickBooks internal operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn())
+    mocks.closeDispatcher.mockResolvedValue(undefined)
     mocks.uploadCopilotFile.mockResolvedValue(COPILOT_FILE)
     mocks.uploadExecutionFile.mockResolvedValue({ ...COPILOT_FILE, context: 'execution' })
   })
 
-  it('downloads attachment bytes directly from the authenticated Intuit endpoint', async () => {
+  it('resolves Intuit temporary URLs and downloads attachment bytes without forwarding OAuth', async () => {
     vi.mocked(fetch).mockResolvedValue(
+      new Response('"https://attachments.example/receipt.png?signature=secret"', {
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+    mocks.guardedFetch.mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3, 4]), {
         headers: {
           'content-disposition': 'attachment; filename="receipt.png"',
@@ -88,6 +102,14 @@ describe('QuickBooks internal operations', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer secret-token' }),
       })
     )
+    expect(mocks.guardedFetch).toHaveBeenCalledWith(
+      'https://attachments.example/receipt.png?signature=secret',
+      expect.objectContaining({
+        method: 'GET',
+        headers: { Accept: '*/*' },
+      })
+    )
+    expect(mocks.closeDispatcher).toHaveBeenCalledOnce()
     expect(mocks.uploadCopilotFile).toHaveBeenCalledWith({
       buffer: Buffer.from([1, 2, 3, 4]),
       fileName: 'receipt.png',
@@ -99,6 +121,11 @@ describe('QuickBooks internal operations', () => {
 
   it('rejects an oversized attachment from Content-Length before buffering it', async () => {
     vi.mocked(fetch).mockResolvedValue(
+      new Response('https://attachments.example/oversized.bin', {
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+    mocks.guardedFetch.mockResolvedValue(
       new Response(new Uint8Array([1]), {
         headers: { 'content-length': String(QUICKBOOKS_MAX_ATTACHMENT_BYTES + 1) },
       })
@@ -115,6 +142,7 @@ describe('QuickBooks internal operations', () => {
         context()
       )
     ).rejects.toThrow('exceeds maximum size')
+    expect(mocks.closeDispatcher).toHaveBeenCalledOnce()
     expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
   })
 

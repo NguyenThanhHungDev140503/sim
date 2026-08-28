@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   buildQuickBooksCreateBillBody,
   buildQuickBooksCreateBillPaymentBody,
+  buildQuickBooksUpdateBillBody,
+  buildQuickBooksUpdateBillPaymentBody,
   buildQuickBooksUpdatePurchaseBody,
+  buildQuickBooksUpdateVendorCreditBody,
   verifyQuickBooksBillLinks,
 } from '@/tools/quickbooks/purchasing_utils'
 import type { QuickBooksCreateBillParams } from '@/tools/quickbooks/types'
@@ -170,6 +173,53 @@ describe('QuickBooks Purchase full-update patch', () => {
       SyncToken: '2',
       sparse: true,
       PrivateNote: 'Updated note',
+    })
+  })
+})
+
+describe('QuickBooks payable full-update patches', () => {
+  it('preserves the current vendor when no replacement vendor is supplied', () => {
+    expect(
+      buildQuickBooksUpdateBillBody({
+        accessToken: 'token',
+        realmId: '123',
+        billId: 'bill-1',
+        syncToken: '2',
+        privateNote: 'Updated bill',
+      })
+    ).toEqual({
+      Id: 'bill-1',
+      SyncToken: '2',
+      sparse: true,
+      PrivateNote: 'Updated bill',
+    })
+    expect(
+      buildQuickBooksUpdateBillPaymentBody({
+        accessToken: 'token',
+        realmId: '123',
+        billPaymentId: 'payment-1',
+        syncToken: '2',
+        privateNote: 'Updated payment',
+      })
+    ).toEqual({
+      Id: 'payment-1',
+      SyncToken: '2',
+      sparse: true,
+      PrivateNote: 'Updated payment',
+    })
+    expect(
+      buildQuickBooksUpdateVendorCreditBody({
+        accessToken: 'token',
+        realmId: '123',
+        vendorCreditId: 'credit-1',
+        syncToken: '2',
+        privateNote: 'Updated credit',
+      })
+    ).toEqual({
+      Id: 'credit-1',
+      SyncToken: '2',
+      sparse: true,
+      PrivateNote: 'Updated credit',
     })
   })
 })

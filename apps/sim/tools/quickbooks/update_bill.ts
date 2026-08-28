@@ -52,9 +52,9 @@ export const quickbooksUpdateBillTool: ToolConfig<
     },
     vendorId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Current or replacement vendor ID required by QuickBooks',
+      description: 'Replacement vendor ID; omit to preserve the current vendor',
     },
     apAccountId: {
       type: 'string',

@@ -18,7 +18,6 @@ import {
   parseQuickBooksAddress,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
-  requiredQuickBooksString,
 } from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
@@ -45,9 +44,10 @@ export const quickbooksCreateVendorTool: ToolConfig<
     },
     displayName: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Unique vendor display name',
+      description:
+        'Unique vendor display name. Required unless givenName or familyName is supplied',
     },
     companyName: {
       type: 'string',
@@ -124,19 +124,26 @@ export const quickbooksCreateVendorTool: ToolConfig<
       ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) =>
-      filterUndefined({
-        DisplayName: requiredQuickBooksString(params.displayName, 'displayName'),
+    body: (params) => {
+      const displayName = optionalQuickBooksString(params.displayName)
+      const givenName = optionalQuickBooksString(params.givenName)
+      const familyName = optionalQuickBooksString(params.familyName)
+      if (displayName === undefined && givenName === undefined && familyName === undefined) {
+        throw new Error('At least one of displayName, givenName, or familyName must be supplied')
+      }
+      return filterUndefined({
+        DisplayName: displayName,
         CompanyName: optionalQuickBooksString(params.companyName),
-        GivenName: optionalQuickBooksString(params.givenName),
-        FamilyName: optionalQuickBooksString(params.familyName),
+        GivenName: givenName,
+        FamilyName: familyName,
         PrimaryEmailAddr: quickBooksEmailAddress(params.primaryEmail),
         PrimaryPhone: quickBooksPhoneNumber(params.primaryPhone),
         BillAddr: parseQuickBooksAddress(params.billingAddress, 'billingAddress'),
         PrintOnCheckName: optionalQuickBooksString(params.printOnCheckName),
         AcctNum: optionalQuickBooksString(params.accountNumber),
         Vendor1099: params.vendor1099,
-      }),
+      })
+    },
     retry: { enabled: false },
   },
   transformResponse: (response) =>

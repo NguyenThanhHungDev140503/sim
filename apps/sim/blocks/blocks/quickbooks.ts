@@ -289,6 +289,21 @@ function optionalValue(value: unknown): unknown {
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }
 
+function requiredWhenNameAlternativesAreEmpty(
+  values: Record<string, unknown> | undefined,
+  operations: readonly string[],
+  alternativeFields: readonly string[]
+) {
+  const operation = typeof values?.operation === 'string' ? values.operation : ''
+  const alternativesAreEmpty = alternativeFields.every(
+    (field) => optionalValue(values?.[field]) === undefined
+  )
+  return {
+    field: 'operation',
+    value: operations.includes(operation) && alternativesAreEmpty ? operation : [],
+  }
+}
+
 function paginationCondition(values?: Record<string, unknown>) {
   if (!values) {
     return { field: 'operation', value: [...PAGINATED_OPERATIONS] }
@@ -386,6 +401,157 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
   integrationType: IntegrationType.Commerce,
   bgColor: '#2CA01C',
   icon: QuickBooksIcon,
+  canvasPresentation: {
+    defaultTitle: 'QuickBooks',
+    sentences: {
+      byOperation: {
+        quickbooks_get_company_info: ['Read the connected QuickBooks company'],
+        quickbooks_read_master_data: [
+          'Read',
+          { field: 'recordType', core: true },
+          { text: 'using', field: 'readMode' },
+        ],
+        quickbooks_create_customer: [
+          {
+            text: 'Create customer',
+            field: ['displayName', 'givenName', 'familyName'],
+            core: true,
+          },
+        ],
+        quickbooks_update_customer: [{ text: 'Update customer', field: 'customerId', core: true }],
+        quickbooks_create_employee: [
+          {
+            text: 'Create employee',
+            field: ['displayName', 'givenName', 'familyName'],
+            core: true,
+          },
+        ],
+        quickbooks_update_employee: [{ text: 'Update employee', field: 'employeeId', core: true }],
+        quickbooks_create_vendor: [
+          {
+            text: 'Create vendor',
+            field: ['displayName', 'givenName', 'familyName'],
+            core: true,
+          },
+        ],
+        quickbooks_update_vendor: [{ text: 'Update vendor', field: 'vendorId', core: true }],
+        quickbooks_create_item: [{ text: 'Create item', field: 'name', core: true }],
+        quickbooks_update_item: [{ text: 'Update item', field: 'itemId', core: true }],
+        quickbooks_read_sales_transactions: [
+          'Read sales transactions',
+          { text: 'of type', field: 'transactionType', core: true },
+          { text: 'using', field: 'readMode' },
+        ],
+        quickbooks_create_estimate: [
+          { text: 'Create an estimate for customer', field: 'customerId', core: true },
+        ],
+        quickbooks_update_estimate: [
+          { text: 'Update estimate', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_invoice: [
+          { text: 'Create an invoice for customer', field: 'customerId', core: true },
+        ],
+        quickbooks_update_invoice: [{ text: 'Update invoice', field: 'transactionId', core: true }],
+        quickbooks_void_invoice: [{ text: 'Void invoice', field: 'transactionId', core: true }],
+        quickbooks_create_sales_receipt: [
+          { text: 'Create a sales receipt for customer', field: 'customerId', core: true },
+        ],
+        quickbooks_update_sales_receipt: [
+          { text: 'Update sales receipt', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_customer_payment: [
+          { text: 'Record payment from customer', field: 'customerId', core: true },
+          { text: 'for', field: 'totalAmount' },
+        ],
+        quickbooks_update_customer_payment: [
+          { text: 'Update customer payment', field: 'transactionId', core: true },
+        ],
+        quickbooks_void_customer_payment: [
+          { text: 'Void customer payment', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_credit_memo: [
+          { text: 'Create a credit memo for customer', field: 'customerId', core: true },
+        ],
+        quickbooks_update_credit_memo: [
+          { text: 'Update credit memo', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_refund_receipt: [
+          { text: 'Create a refund receipt for customer', field: 'customerId', core: true },
+        ],
+        quickbooks_update_refund_receipt: [
+          { text: 'Update refund receipt', field: 'transactionId', core: true },
+        ],
+        quickbooks_read_purchasing_transactions: [
+          'Read purchasing transactions',
+          { text: 'of type', field: 'purchasingTransactionType', core: true },
+          { text: 'using', field: 'readMode' },
+        ],
+        quickbooks_create_purchase_order: [
+          { text: 'Create a purchase order for vendor', field: 'vendorId', core: true },
+        ],
+        quickbooks_update_purchase_order: [
+          { text: 'Update purchase order', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_bill: [
+          { text: 'Create a bill for vendor', field: 'vendorId', core: true },
+        ],
+        quickbooks_update_bill: [{ text: 'Update bill', field: 'transactionId', core: true }],
+        quickbooks_create_bill_payment: [
+          { text: 'Record bill payment for vendor', field: 'vendorId', core: true },
+          { text: 'for', field: 'totalAmount' },
+        ],
+        quickbooks_update_bill_payment: [
+          { text: 'Update bill payment', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_vendor_credit: [
+          { text: 'Create a credit for vendor', field: 'vendorId', core: true },
+        ],
+        quickbooks_update_vendor_credit: [
+          { text: 'Update vendor credit', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_purchase: [
+          { text: 'Record a purchase for vendor', field: 'vendorId', core: true },
+        ],
+        quickbooks_update_purchase: [
+          { text: 'Update purchase', field: 'transactionId', core: true },
+        ],
+        quickbooks_read_accounting_transactions: [
+          'Read accounting transactions',
+          { text: 'of type', field: 'accountingTransactionType', core: true },
+          { text: 'using', field: 'readMode' },
+        ],
+        quickbooks_create_journal_entry: ['Create a journal entry'],
+        quickbooks_update_journal_entry: [
+          { text: 'Update journal entry', field: 'transactionId', core: true },
+        ],
+        quickbooks_create_deposit: [
+          { text: 'Create a deposit into account', field: 'depositAccountId', core: true },
+        ],
+        quickbooks_update_deposit: [{ text: 'Update deposit', field: 'transactionId', core: true }],
+        quickbooks_run_financial_report: [{ text: 'Run report', field: 'reportType', core: true }],
+        quickbooks_email_transaction: [
+          { text: 'Email', field: 'documentTransactionType', core: true },
+          { text: 'with ID', field: 'documentTransactionId' },
+        ],
+        quickbooks_download_transaction_pdf: [
+          { text: 'Download PDF for', field: 'documentTransactionType', core: true },
+          { text: 'with ID', field: 'documentTransactionId' },
+        ],
+        quickbooks_read_attachments: [
+          'Read QuickBooks attachments',
+          { text: 'for', field: 'attachmentTargetType' },
+          { text: 'with ID', field: 'attachmentTargetId' },
+        ],
+        quickbooks_add_attachment: [
+          { text: 'Add attachment to', field: 'attachmentTargetType', core: true },
+          { text: 'with ID', field: 'attachmentTargetId' },
+        ],
+        quickbooks_download_attachment: [
+          { text: 'Download attachment', field: 'attachmentId', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -545,15 +711,18 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Bill', id: 'bill' },
+        { label: 'Bill Payment', id: 'bill_payment' },
         { label: 'Credit Memo', id: 'credit_memo' },
-        { label: 'Customer', id: 'customer' },
+        { label: 'Deposit', id: 'deposit' },
         { label: 'Estimate', id: 'estimate' },
         { label: 'Invoice', id: 'invoice' },
+        { label: 'Item', id: 'item' },
+        { label: 'Journal Entry', id: 'journal_entry' },
         { label: 'Customer Payment', id: 'payment' },
         { label: 'Purchase or Expense', id: 'purchase' },
+        { label: 'Purchase Order', id: 'purchase_order' },
         { label: 'Refund Receipt', id: 'refund_receipt' },
         { label: 'Sales Receipt', id: 'sales_receipt' },
-        { label: 'Vendor', id: 'vendor' },
         { label: 'Vendor Credit', id: 'vendor_credit' },
       ],
       condition: attachmentTargetCondition,
@@ -1274,11 +1443,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'quickbooks_update_vendor',
           'quickbooks_create_purchase_order',
           'quickbooks_create_bill',
-          'quickbooks_update_bill',
           'quickbooks_create_bill_payment',
-          'quickbooks_update_bill_payment',
           'quickbooks_create_vendor_credit',
-          'quickbooks_update_vendor_credit',
         ],
       },
     },
@@ -1315,10 +1481,12 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         field: 'operation',
         value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
-      required: {
-        field: 'operation',
-        value: ['quickbooks_create_customer', 'quickbooks_create_vendor'],
-      },
+      required: (values) =>
+        requiredWhenNameAlternativesAreEmpty(
+          values,
+          ['quickbooks_create_customer', 'quickbooks_create_vendor'],
+          ['givenName', 'familyName']
+        ),
     },
     {
       id: 'companyName',
@@ -1339,6 +1507,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         field: 'operation',
         value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
+      required: (values) =>
+        requiredWhenNameAlternativesAreEmpty(
+          values,
+          ['quickbooks_create_customer', 'quickbooks_create_employee', 'quickbooks_create_vendor'],
+          values?.operation === 'quickbooks_create_employee'
+            ? ['familyName']
+            : ['displayName', 'familyName']
+        ),
     },
     {
       id: 'familyName',
@@ -1349,6 +1525,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         field: 'operation',
         value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
+      required: (values) =>
+        requiredWhenNameAlternativesAreEmpty(
+          values,
+          ['quickbooks_create_customer', 'quickbooks_create_employee', 'quickbooks_create_vendor'],
+          values?.operation === 'quickbooks_create_employee'
+            ? ['givenName']
+            : ['displayName', 'givenName']
+        ),
     },
     {
       id: 'primaryEmail',

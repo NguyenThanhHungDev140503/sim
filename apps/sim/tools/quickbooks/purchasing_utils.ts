@@ -489,9 +489,8 @@ export function buildQuickBooksUpdateBillBody(
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
     ...purchasingHeader(params),
-    VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
   }
-  assertQuickBooksSparseUpdate(body, 4)
+  assertQuickBooksSparseUpdate(body)
   return body
 }
 
@@ -533,11 +532,11 @@ export function buildQuickBooksUpdateBillPaymentBody(
     Id: requiredQuickBooksString(params.billPaymentId, 'billPaymentId'),
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
-    VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
+    VendorRef: params.vendorId ? quickBooksReference(params.vendorId, 'vendorId') : undefined,
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     PrivateNote: optionalQuickBooksString(params.privateNote),
   }) as Record<string, unknown>
-  assertQuickBooksSparseUpdate(body, 4)
+  assertQuickBooksSparseUpdate(body)
   return body
 }
 
@@ -559,9 +558,8 @@ export function buildQuickBooksUpdateVendorCreditBody(
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
     ...purchasingHeader(params),
-    VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
   }
-  assertQuickBooksSparseUpdate(body, 4)
+  assertQuickBooksSparseUpdate(body)
   return body
 }
 

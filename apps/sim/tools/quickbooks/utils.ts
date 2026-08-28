@@ -431,6 +431,31 @@ interface QuickBooksFullUpdateOptions<
   sanitize?: (record: T) => T
 }
 
+export function buildQuickBooksFullUpdateBody(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>,
+  recordId: string,
+  syncToken: string
+): Record<string, unknown> {
+  const currentFields = omit(current, [
+    'HeaderFull',
+    'HeaderLite',
+    'MetaData',
+    'NameAndId',
+    'Overview',
+    'domain',
+    'sparse',
+    'status',
+  ])
+  const patchFields = omit(patch, ['sparse'])
+  return {
+    ...currentFields,
+    ...patchFields,
+    Id: recordId,
+    SyncToken: syncToken,
+  }
+}
+
 /**
  * Implements Intuit's documented full-update sequence: read the complete live
  * entity, reject stale caller state, apply only the requested patch, and post
@@ -472,23 +497,7 @@ export async function executeQuickBooksFullUpdate<
   }
   options.signal?.throwIfAborted()
 
-  const currentFields = omit(current, [
-    'HeaderFull',
-    'HeaderLite',
-    'MetaData',
-    'NameAndId',
-    'Overview',
-    'domain',
-    'sparse',
-    'status',
-  ])
-  const patchFields = omit(patch, ['sparse'])
-  const fullBody = {
-    ...currentFields,
-    ...patchFields,
-    Id: recordId,
-    SyncToken: syncToken,
-  }
+  const fullBody = buildQuickBooksFullUpdateBody(current, patch, recordId, syncToken)
   const updateResponse = await fetch(
     buildQuickBooksEntityUrl(options.params.realmId, options.resource),
     {

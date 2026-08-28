@@ -496,15 +496,18 @@ export type QuickBooksDocumentTransactionType =
 
 export type QuickBooksAttachmentTargetType =
   | 'bill'
+  | 'bill_payment'
   | 'credit_memo'
-  | 'customer'
+  | 'deposit'
   | 'estimate'
   | 'invoice'
+  | 'item'
+  | 'journal_entry'
   | 'payment'
   | 'purchase'
+  | 'purchase_order'
   | 'refund_receipt'
   | 'sales_receipt'
-  | 'vendor'
   | 'vendor_credit'
 
 export type QuickBooksAttachmentReadMode = 'list' | 'by_id'
@@ -761,7 +764,7 @@ export interface QuickBooksCreateBillParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdateBillParams extends QuickBooksAuthParams {
   billId: string
   syncToken: string
-  vendorId: string
+  vendorId?: string
   apAccountId?: string
   transactionDate?: string
   dueDate?: string
@@ -785,7 +788,7 @@ export interface QuickBooksCreateBillPaymentParams extends QuickBooksAuthParams 
 export interface QuickBooksUpdateBillPaymentParams extends QuickBooksAuthParams {
   billPaymentId: string
   syncToken: string
-  vendorId: string
+  vendorId?: string
   transactionDate?: string
   privateNote?: string
 }
@@ -803,7 +806,7 @@ export interface QuickBooksCreateVendorCreditParams extends QuickBooksAuthParams
 export interface QuickBooksUpdateVendorCreditParams extends QuickBooksAuthParams {
   vendorCreditId: string
   syncToken: string
-  vendorId: string
+  vendorId?: string
   apAccountId?: string
   transactionDate?: string
   documentNumber?: string
@@ -943,7 +946,7 @@ export type QuickBooksActiveStatus = 'unchanged' | 'active' | 'inactive'
 export type QuickBooksReadActiveStatus = 'default' | 'active' | 'inactive'
 
 export interface QuickBooksCreateCustomerParams extends QuickBooksAuthParams {
-  displayName: string
+  displayName?: string
   requestId?: string
   companyName?: string
   givenName?: string
@@ -984,7 +987,7 @@ export interface QuickBooksUpdateEmployeeParams
 }
 
 export interface QuickBooksCreateVendorParams extends QuickBooksAuthParams {
-  displayName: string
+  displayName?: string
   requestId?: string
   companyName?: string
   givenName?: string

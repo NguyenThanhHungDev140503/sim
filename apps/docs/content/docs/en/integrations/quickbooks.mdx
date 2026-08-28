@@ -215,7 +215,7 @@ Create a customer in the connected QuickBooks Online company
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `displayName` | string | Yes | Unique customer display name |
+| `displayName` | string | No | Unique customer display name. Required unless givenName or familyName is supplied |
 | `companyName` | string | No | Customer company name |
 | `givenName` | string | No | Customer given name |
 | `familyName` | string | No | Customer family name |
@@ -399,7 +399,7 @@ Create a vendor in the connected QuickBooks Online company
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `displayName` | string | Yes | Unique vendor display name |
+| `displayName` | string | No | Unique vendor display name. Required unless givenName or familyName is supplied |
 | `companyName` | string | No | Vendor company name |
 | `givenName` | string | No | Vendor given name |
 | `familyName` | string | No | Vendor family name |
@@ -1160,7 +1160,7 @@ Record a customer payment with optional bounded invoice allocations
 
 ### QuickBooks Update Customer Payment
 
-Sparse-update a customer payment using its current sync token
+Read, merge, and full-update a customer payment using its current sync token
 
 #### Input
 
@@ -1869,7 +1869,7 @@ Read, merge, and full-update bill header fields using its current sync token
 | --------- | ---- | -------- | ----------- |
 | `billId` | string | Yes | Bill ID to update |
 | `syncToken` | string | Yes | Current bill sync token |
-| `vendorId` | string | Yes | Current or replacement vendor ID required by QuickBooks |
+| `vendorId` | string | No | Replacement vendor ID; omit to preserve the current vendor |
 | `apAccountId` | string | No | Replacement accounts-payable account ID |
 | `transactionDate` | string | No | Replacement bill date in YYYY-MM-DD format |
 | `dueDate` | string | No | Replacement due date in YYYY-MM-DD format |
@@ -2017,7 +2017,7 @@ Read, merge, and full-update a BillPayment without changing allocations
 | --------- | ---- | -------- | ----------- |
 | `billPaymentId` | string | Yes | BillPayment ID to update |
 | `syncToken` | string | Yes | Current BillPayment sync token |
-| `vendorId` | string | Yes | Current vendor ID required by QuickBooks |
+| `vendorId` | string | No | Replacement vendor ID; omit to preserve the current vendor |
 | `transactionDate` | string | No | Replacement payment date in YYYY-MM-DD format |
 | `privateNote` | string | No | Replacement internal note |
 
@@ -2161,7 +2161,7 @@ Read, merge, and full-update vendor-credit header fields
 | --------- | ---- | -------- | ----------- |
 | `vendorCreditId` | string | Yes | VendorCredit ID to update |
 | `syncToken` | string | Yes | Current vendor-credit sync token |
-| `vendorId` | string | Yes | Current or replacement vendor ID required by QuickBooks |
+| `vendorId` | string | No | Replacement vendor ID; omit to preserve the current vendor |
 | `apAccountId` | string | No | Replacement accounts-payable account ID |
 | `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Replacement vendor-credit number |

@@ -29,32 +29,35 @@ const documentTransactionTypeSchema = z.enum([
 
 const attachmentTargetTypeSchema = z.enum([
   'bill',
+  'bill_payment',
   'credit_memo',
-  'customer',
+  'deposit',
   'estimate',
   'invoice',
+  'item',
+  'journal_entry',
   'payment',
   'purchase',
+  'purchase_order',
   'refund_receipt',
   'sales_receipt',
-  'vendor',
   'vendor_credit',
 ])
 
-const optionalFileName = z.string().trim().max(180, 'Filename is too long').optional().nullable()
+const optionalFileName = z.string().trim().max(1000, 'Filename is too long').optional().nullable()
 const optionalContentType = z
   .string()
   .trim()
-  .max(255, 'Content type is too long')
+  .max(100, 'Content type is too long')
   .optional()
   .nullable()
 const optionalDescription = z
   .string()
   .trim()
-  .max(1000, 'Description is too long')
+  .max(2000, 'Description is too long')
   .optional()
   .nullable()
-const optionalNote = z.string().trim().max(4000, 'Note is too long').optional().nullable()
+const optionalNote = z.string().trim().max(2000, 'Note is too long').optional().nullable()
 const boundedId = z.string().trim().min(1, 'ID is required').max(256, 'ID is too long')
 const routeErrorSchema = z.object({ success: z.literal(false), error: z.string().min(1) })
 const attachableSchema = z
@@ -139,7 +142,7 @@ export type QuickBooksAddAttachmentBody = z.output<typeof quickBooksAddAttachmen
 
 const quickBooksStoredFileShape = {
   file: userFileSchema,
-  fileName: z.string().min(1).max(180),
+  fileName: z.string().min(1).max(1000),
   size: z.number().int().positive(),
 }
 

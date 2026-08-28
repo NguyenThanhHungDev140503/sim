@@ -22,22 +22,25 @@ export const QUICKBOOKS_DOCUMENT_TRANSACTIONS = {
 
 export const QUICKBOOKS_ATTACHMENT_TARGETS = {
   bill: { entityType: 'Bill' },
+  bill_payment: { entityType: 'BillPayment' },
   credit_memo: { entityType: 'CreditMemo' },
-  customer: { entityType: 'Customer' },
+  deposit: { entityType: 'Deposit' },
   estimate: { entityType: 'Estimate' },
   invoice: { entityType: 'Invoice' },
+  item: { entityType: 'Item' },
+  journal_entry: { entityType: 'JournalEntry' },
   payment: { entityType: 'Payment' },
   purchase: { entityType: 'Purchase' },
+  purchase_order: { entityType: 'PurchaseOrder' },
   refund_receipt: { entityType: 'RefundReceipt' },
   sales_receipt: { entityType: 'SalesReceipt' },
-  vendor: { entityType: 'Vendor' },
   vendor_credit: { entityType: 'VendorCredit' },
 } as const satisfies Record<QuickBooksAttachmentTargetType, { entityType: string }>
 
 /**
- * Sim caps a single QuickBooks attachment at the 20 MB limit Intuit documents
- * for files entering QuickBooks document workflows.
- * @see https://quickbooks.intuit.com/learn-support/en-us/help-article/accounts-payable/email-receipts-bills-quickbooks-online/L7r2LAQ7C_US_en_US
+ * Sim intentionally caps each attachment at 20 MB to bound memory use. This is
+ * below Intuit's documented 100 MB overall multipart request ceiling.
+ * @see https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/attachable
  */
 export const QUICKBOOKS_MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 
@@ -65,12 +68,15 @@ interface QuickBooksFileType {
 }
 
 /**
- * Extension allowlist for QuickBooks attachments. Intuit publishes accepted
- * extensions but not MIME types, so each entry tolerates the common aliases a
- * browser or operating system may report and normalizes them to one canonical
- * content type before upload.
+ * Extension allowlist for QuickBooks attachments. Each entry follows Intuit's
+ * published extension/content-type table, tolerates common browser and OS MIME
+ * aliases, and normalizes them to one canonical content type before upload.
  */
 const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
+  ai: {
+    canonical: 'application/postscript',
+    accepted: ['application/postscript', QUICKBOOKS_OCTET_STREAM],
+  },
   csv: {
     canonical: 'text/csv',
     accepted: [
@@ -85,14 +91,33 @@ const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
     canonical: 'application/msword',
     accepted: ['application/msword', 'application/vnd.ms-word', QUICKBOOKS_OCTET_STREAM],
   },
+  docx: {
+    canonical: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    accepted: [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      QUICKBOOKS_OCTET_STREAM,
+    ],
+  },
+  eps: {
+    canonical: 'application/postscript',
+    accepted: ['application/postscript', QUICKBOOKS_OCTET_STREAM],
+  },
   gif: { canonical: 'image/gif', accepted: ['image/gif'] },
   jpeg: { canonical: 'image/jpeg', accepted: ['image/jpeg', 'image/jpg', 'image/pjpeg'] },
   jpg: { canonical: 'image/jpeg', accepted: ['image/jpeg', 'image/jpg', 'image/pjpeg'] },
+  ods: {
+    canonical: 'application/vnd.oasis.opendocument.spreadsheet',
+    accepted: ['application/vnd.oasis.opendocument.spreadsheet', QUICKBOOKS_OCTET_STREAM],
+  },
   pdf: {
     canonical: 'application/pdf',
     accepted: ['application/pdf', 'application/x-pdf', QUICKBOOKS_OCTET_STREAM],
   },
   png: { canonical: 'image/png', accepted: ['image/png', 'image/x-png'] },
+  rtf: {
+    canonical: 'text/rtf',
+    accepted: ['text/rtf', 'application/rtf', QUICKBOOKS_OCTET_STREAM],
+  },
   tif: {
     canonical: 'image/tiff',
     accepted: ['image/tiff', 'image/tif', 'image/x-tiff', QUICKBOOKS_OCTET_STREAM],
@@ -100,6 +125,14 @@ const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
   tiff: {
     canonical: 'image/tiff',
     accepted: ['image/tiff', 'image/tif', 'image/x-tiff', QUICKBOOKS_OCTET_STREAM],
+  },
+  txt: {
+    canonical: 'text/plain',
+    accepted: ['text/plain', QUICKBOOKS_OCTET_STREAM],
+  },
+  xls: {
+    canonical: 'application/vnd.ms-excel',
+    accepted: ['application/vnd.ms-excel', 'application/vnd/ms-excel', QUICKBOOKS_OCTET_STREAM],
   },
   xlsx: {
     canonical: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -137,7 +170,7 @@ export function validateQuickBooksRecipient(recipient?: string): string | undefi
   return normalized
 }
 
-const QUICKBOOKS_MAX_FILE_NAME_LENGTH = 180
+const QUICKBOOKS_MAX_FILE_NAME_LENGTH = 1000
 
 /**
  * Bounds a filename without destroying its extension. Truncating the whole

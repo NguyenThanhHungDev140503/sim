@@ -2,6 +2,9 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { quickBooksAddAttachmentBodySchema } from '@/lib/api/contracts/tools/quickbooks'
+import { quickbooksCreateCustomerTool } from '@/tools/quickbooks/create_customer'
+import { quickbooksCreateVendorTool } from '@/tools/quickbooks/create_vendor'
 import {
   assertQuickBooksAttachmentExtension,
   getQuickBooksAttachmentTarget,
@@ -54,18 +57,96 @@ describe('QuickBooks documented document operations', () => {
 })
 
 describe('QuickBooks attachment contract', () => {
-  it('supports customer and vendor profiles and excludes list items', () => {
-    expect(getQuickBooksAttachmentTarget('customer')).toEqual({ entityType: 'Customer' })
-    expect(getQuickBooksAttachmentTarget('vendor')).toEqual({ entityType: 'Vendor' })
-    expect(() => getQuickBooksAttachmentTarget('item' as QuickBooksAttachmentTargetType)).toThrow(
-      'Unsupported QuickBooks attachment target type'
-    )
+  it.each([
+    ['bill', 'Bill'],
+    ['bill_payment', 'BillPayment'],
+    ['credit_memo', 'CreditMemo'],
+    ['deposit', 'Deposit'],
+    ['estimate', 'Estimate'],
+    ['invoice', 'Invoice'],
+    ['item', 'Item'],
+    ['journal_entry', 'JournalEntry'],
+    ['payment', 'Payment'],
+    ['purchase', 'Purchase'],
+    ['purchase_order', 'PurchaseOrder'],
+    ['refund_receipt', 'RefundReceipt'],
+    ['sales_receipt', 'SalesReceipt'],
+    ['vendor_credit', 'VendorCredit'],
+  ] as const)('maps the documented %s attachment target', (type, entityType) => {
+    expect(getQuickBooksAttachmentTarget(type)).toEqual({ entityType })
   })
 
-  it('accepts documented TIFF files and rejects undocumented DOCX files', () => {
-    expect(validateQuickBooksAttachmentFileType('scan.tiff', 'image/tiff')).toBe('image/tiff')
-    expect(() => assertQuickBooksAttachmentExtension('contract.docx')).toThrow(
-      'does not support the docx file type'
+  it('rejects unsupported non-transaction targets', () => {
+    expect(() =>
+      getQuickBooksAttachmentTarget('customer' as QuickBooksAttachmentTargetType)
+    ).toThrow('Unsupported QuickBooks attachment target type')
+  })
+
+  it('enforces Intuit attachment metadata limits', () => {
+    const base = {
+      accessToken: 'token',
+      realmId: '123',
+      attachmentKind: 'note' as const,
+      targetType: 'item' as const,
+      targetId: 'item-1',
+    }
+    expect(
+      quickBooksAddAttachmentBodySchema.safeParse({ ...base, note: 'n'.repeat(2000) }).success
+    ).toBe(true)
+    expect(
+      quickBooksAddAttachmentBodySchema.safeParse({ ...base, note: 'n'.repeat(2001) }).success
+    ).toBe(false)
+
+    const fileBase = {
+      ...base,
+      attachmentKind: 'file' as const,
+      file: { key: 'uploads/file.txt', name: 'file.txt', size: 4, type: 'text/plain' },
+      note: undefined,
+    }
+    expect(
+      quickBooksAddAttachmentBodySchema.safeParse({
+        ...fileBase,
+        fileName: `${'f'.repeat(996)}.txt`,
+        contentType: 'c'.repeat(100),
+        description: 'd'.repeat(2000),
+      }).success
+    ).toBe(true)
+    expect(
+      quickBooksAddAttachmentBodySchema.safeParse({
+        ...fileBase,
+        contentType: 'c'.repeat(101),
+      }).success
+    ).toBe(false)
+    expect(
+      quickBooksAddAttachmentBodySchema.safeParse({
+        ...fileBase,
+        description: 'd'.repeat(2001),
+      }).success
+    ).toBe(false)
+  })
+
+  it.each([
+    ['design.ai', 'application/postscript', 'application/postscript'],
+    [
+      'contract.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    [
+      'sheet.ods',
+      'application/vnd.oasis.opendocument.spreadsheet',
+      'application/vnd.oasis.opendocument.spreadsheet',
+    ],
+    ['scan.tiff', 'image/tiff', 'image/tiff'],
+    ['notes.txt', 'text/plain', 'text/plain'],
+    ['legacy.xls', 'application/vnd.ms-excel', 'application/vnd.ms-excel'],
+  ])('accepts the documented %s attachment type', (fileName, mimeType, canonical) => {
+    expect(validateQuickBooksAttachmentFileType(fileName, mimeType)).toBe(canonical)
+  })
+
+  it('rejects file extensions outside the documented upload table', () => {
+    expect(() => assertQuickBooksAttachmentExtension('archive.zip')).toThrow(
+      'does not support the zip file type'
     )
   })
 })
@@ -85,5 +166,33 @@ describe('QuickBooks sensitive output handling', () => {
 
     expect(result?.output.company).toMatchObject({ Id: '123', CompanyName: 'Example Company' })
     expect(result?.output.company).not.toHaveProperty('EmployerId')
+  })
+})
+
+describe('QuickBooks documented create-name alternatives', () => {
+  it('creates customers and vendors from supported name components without a display name', () => {
+    expect(
+      quickbooksCreateCustomerTool.request.body?.({
+        accessToken: 'token',
+        realmId: '123',
+        givenName: 'Ada',
+      })
+    ).toMatchObject({ GivenName: 'Ada' })
+    expect(
+      quickbooksCreateVendorTool.request.body?.({
+        accessToken: 'token',
+        realmId: '123',
+        familyName: 'Lovelace',
+      })
+    ).toMatchObject({ FamilyName: 'Lovelace' })
+  })
+
+  it('rejects customer and vendor creates with no supported name field', () => {
+    expect(() =>
+      quickbooksCreateCustomerTool.request.body?.({ accessToken: 'token', realmId: '123' })
+    ).toThrow('At least one of displayName, givenName, or familyName must be supplied')
+    expect(() =>
+      quickbooksCreateVendorTool.request.body?.({ accessToken: 'token', realmId: '123' })
+    ).toThrow('At least one of displayName, givenName, or familyName must be supplied')
   })
 })

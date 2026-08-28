@@ -14,6 +14,7 @@ import {
 } from '@/tools/quickbooks/types'
 import {
   buildQuickBooksEntityUrl,
+  buildQuickBooksFullUpdateBody,
   getQuickBooksDirectExecutionError,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
@@ -27,7 +28,7 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
 > = {
   id: 'quickbooks_update_customer_payment',
   name: 'QuickBooks Update Customer Payment',
-  description: 'Sparse-update a customer payment using its current sync token',
+  description: 'Read, merge, and full-update a customer payment using its current sync token',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -125,9 +126,9 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
     retry: { enabled: false },
   },
   /**
-   * QuickBooks updates Payment lines all-or-none: an update that omits a line
-   * unapplies that invoice. Read the payment first so supplied allocations can
-   * be merged into the live line set instead of silently replacing it.
+   * QuickBooks only documents full Payment updates and treats Payment lines as
+   * all-or-none. Read the complete payment first, preserve its writable fields,
+   * and merge supplied allocations unless the caller explicitly replaces them.
    */
   directExecution: async (params, signal) => {
     const paymentId = params.paymentId?.trim()
@@ -137,33 +138,50 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
     // duplicate invoice references never contact QuickBooks.
     parseQuickBooksInvoiceAllocations(params.invoiceAllocations)
 
-    let currentPayment: QuickBooksSalesTransaction | undefined
-    if (params.invoiceAllocations && !params.unapplyOmittedInvoices) {
-      const readResponse = await fetch(
-        buildQuickBooksEntityUrl(params.realmId, 'payment', paymentId),
-        { method: 'GET', headers: getQuickBooksToolHeaders(params.accessToken), signal }
-      )
-      if (!readResponse.ok)
-        throw await getQuickBooksDirectExecutionError(readResponse, 'Payment', signal)
-      const { item } = await transformQuickBooksEntityResponse<QuickBooksSalesTransaction>(
+    const syncToken = params.syncToken?.trim()
+    if (!syncToken) throw new Error('syncToken is required')
+    const readResponse = await fetch(
+      buildQuickBooksEntityUrl(params.realmId, 'payment', paymentId),
+      {
+        method: 'GET',
+        headers: getQuickBooksToolHeaders(params.accessToken),
+        signal,
+      }
+    )
+    if (!readResponse.ok) {
+      throw await getQuickBooksDirectExecutionError(readResponse, 'Payment', signal)
+    }
+    const { item: currentPayment } =
+      await transformQuickBooksEntityResponse<QuickBooksSalesTransaction>(
         readResponse,
         'Payment',
         signal
       )
-      const currentSyncToken = typeof item.SyncToken === 'string' ? item.SyncToken.trim() : ''
-      if (currentSyncToken !== params.syncToken?.trim()) {
-        throw new Error(
-          `QuickBooks payment ${paymentId} changed since sync token ${params.syncToken} was read (current sync token ${currentSyncToken}). Re-read the payment and retry.`
-        )
-      }
-      currentPayment = item
-      signal?.throwIfAborted()
+    const currentId = typeof currentPayment.Id === 'string' ? currentPayment.Id.trim() : ''
+    const currentSyncToken =
+      typeof currentPayment.SyncToken === 'string' ? currentPayment.SyncToken.trim() : ''
+    if (currentId !== paymentId) {
+      throw new Error('QuickBooks Payment read returned an unexpected record ID')
     }
+    if (currentSyncToken !== syncToken) {
+      throw new Error(
+        `QuickBooks payment ${paymentId} changed since sync token ${syncToken} was read (current sync token ${currentSyncToken}). Re-read the payment and retry.`
+      )
+    }
+    signal?.throwIfAborted()
+
+    const patch = buildQuickBooksUpdatePaymentBody(params, currentPayment)
+    const fullBody = buildQuickBooksFullUpdateBody(
+      currentPayment as QuickBooksSalesTransaction & Record<string, unknown>,
+      patch,
+      paymentId,
+      syncToken
+    )
 
     const updateResponse = await fetch(buildQuickBooksEntityUrl(params.realmId, 'payment'), {
       method: 'POST',
       headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-      body: JSON.stringify(buildQuickBooksUpdatePaymentBody(params, currentPayment)),
+      body: JSON.stringify(fullBody),
       signal,
     })
     if (!updateResponse.ok)

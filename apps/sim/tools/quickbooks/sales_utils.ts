@@ -432,7 +432,7 @@ function buildUpdatePaymentLines(
 }
 
 /**
- * Build the sparse Payment update body.
+ * Build the Payment patch merged into the documented full-update request.
  *
  * `currentPayment` is the payment as QuickBooks currently holds it and is
  * required whenever invoice allocations are supplied: QuickBooks updates

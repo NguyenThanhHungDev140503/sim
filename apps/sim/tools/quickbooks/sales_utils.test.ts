@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/config/env', () => ({
+  env: { QUICKBOOKS_ENV: 'production' },
+}))
+
 import {
   buildQuickBooksCreatePaymentBody,
   buildQuickBooksUpdatePaymentBody,
@@ -136,5 +141,60 @@ describe('QuickBooks customer payment allocations', () => {
       )
     ).rejects.toThrow('invoiceAllocations lists invoice invoice-1 more than once')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('reads and preserves the complete Payment for every documented full update', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          Payment: {
+            Id: 'payment-1',
+            SyncToken: '2',
+            CustomerRef: { value: 'customer-1' },
+            TotalAmt: 25,
+            Line: [
+              {
+                Amount: 25,
+                LinkedTxn: [{ TxnId: 'invoice-1', TxnType: 'Invoice' }],
+              },
+            ],
+            PrivateNote: 'Old note',
+            MetaData: { CreateTime: '2026-08-01T00:00:00Z' },
+            domain: 'QBO',
+            sparse: false,
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ Payment: { Id: 'payment-1', SyncToken: '3', TotalAmt: 25 } })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await quickbooksUpdateCustomerPaymentTool.directExecution?.(
+      {
+        accessToken: 'token',
+        realmId: '123',
+        paymentId: 'payment-1',
+        syncToken: '2',
+        privateNote: 'New note',
+      },
+      undefined
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      Id: 'payment-1',
+      SyncToken: '2',
+      CustomerRef: { value: 'customer-1' },
+      TotalAmt: 25,
+      Line: [
+        {
+          Amount: 25,
+          LinkedTxn: [{ TxnId: 'invoice-1', TxnType: 'Invoice' }],
+        },
+      ],
+      PrivateNote: 'New note',
+    })
   })
 })
