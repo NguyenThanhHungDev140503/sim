@@ -12,6 +12,7 @@ import {
   buildQuickBooksEntityUrl,
   buildQuickBooksMasterDataQueryUrl,
   getQuickBooksMasterDataEntity,
+  getQuickBooksRecordVersion,
   getQuickBooksToolHeaders,
   sanitizeQuickBooksCustomer,
   sanitizeQuickBooksEmployee,
@@ -155,6 +156,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         output: {
           recordType: params.recordType,
           item: sanitizeMasterDataRecord(params.recordType, result.item),
+          recordVersion: getQuickBooksRecordVersion(result.item),
           time: result.time,
         },
       }
@@ -180,6 +182,11 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         type: 'json',
         properties: QUICKBOOKS_MASTER_DATA_PROPERTIES,
       },
+    },
+    recordVersion: {
+      type: 'string',
+      description: 'Display-safe alias for the native SyncToken on a by-ID record',
+      optional: true,
     },
     startPosition: {
       type: 'number',

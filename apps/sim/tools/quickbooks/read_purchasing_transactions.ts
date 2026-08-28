@@ -9,6 +9,7 @@ import {
   buildQuickBooksEntityUrl,
   buildQuickBooksPurchasingQueryUrl,
   getQuickBooksPurchasingEntity,
+  getQuickBooksRecordVersion,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
@@ -145,7 +146,12 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
       )
       return {
         success: true,
-        output: { transactionType: params.transactionType, item: result.item, time: result.time },
+        output: {
+          transactionType: params.transactionType,
+          item: result.item,
+          recordVersion: getQuickBooksRecordVersion(result.item),
+          time: result.time,
+        },
       }
     }
     throw new Error(`Unsupported QuickBooks purchasing read mode: ${String(params.readMode)}`)
@@ -163,6 +169,11 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
       description: 'Native QuickBooks purchasing transactions',
       optional: true,
       items: { type: 'json', properties: QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES },
+    },
+    recordVersion: {
+      type: 'string',
+      description: 'Display-safe alias for the native SyncToken on a by-ID transaction',
+      optional: true,
     },
     startPosition: {
       type: 'number',

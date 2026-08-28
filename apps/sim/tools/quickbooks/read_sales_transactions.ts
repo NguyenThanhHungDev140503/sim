@@ -8,6 +8,7 @@ import { QUICKBOOKS_SALES_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/type
 import {
   buildQuickBooksEntityUrl,
   buildQuickBooksSalesQueryUrl,
+  getQuickBooksRecordVersion,
   getQuickBooksSalesEntity,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
@@ -147,7 +148,12 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
       )
       return {
         success: true,
-        output: { transactionType: params.transactionType, item: result.item, time: result.time },
+        output: {
+          transactionType: params.transactionType,
+          item: result.item,
+          recordVersion: getQuickBooksRecordVersion(result.item),
+          time: result.time,
+        },
       }
     }
     throw new Error(`Unsupported QuickBooks sales read mode: ${String(params.readMode)}`)
@@ -165,6 +171,11 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
       description: 'Native QuickBooks sales transactions',
       optional: true,
       items: { type: 'json', properties: QUICKBOOKS_SALES_TRANSACTION_PROPERTIES },
+    },
+    recordVersion: {
+      type: 'string',
+      description: 'Display-safe alias for the native SyncToken on a by-ID transaction',
+      optional: true,
     },
     startPosition: {
       type: 'number',

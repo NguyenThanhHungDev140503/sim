@@ -609,6 +609,11 @@ export async function transformQuickBooksEntityResponse<
   }
 }
 
+export function getQuickBooksRecordVersion(record: { SyncToken?: string }): string | undefined {
+  const recordVersion = typeof record.SyncToken === 'string' ? record.SyncToken.trim() : ''
+  return recordVersion || undefined
+}
+
 export async function transformQuickBooksMutationResponse<
   T extends { Id: string; SyncToken?: string },
 >(
@@ -620,13 +625,13 @@ export async function transformQuickBooksMutationResponse<
   const parsed = await transformQuickBooksEntityResponse<T>(response, entity, signal)
   const item = sanitize(parsed.item)
   const recordId = typeof item.Id === 'string' ? item.Id.trim() : ''
-  const syncToken = typeof item.SyncToken === 'string' ? item.SyncToken.trim() : ''
+  const syncToken = getQuickBooksRecordVersion(item) ?? ''
   if (!recordId || !syncToken) {
     throw new Error(`QuickBooks ${entity} response is missing Id or SyncToken`)
   }
   return {
     success: true,
-    output: { record: item, recordId, syncToken, time: parsed.time },
+    output: { record: item, recordId, syncToken, recordVersion: syncToken, time: parsed.time },
   }
 }
 

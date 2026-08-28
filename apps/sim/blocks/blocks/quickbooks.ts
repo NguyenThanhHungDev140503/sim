@@ -2944,8 +2944,23 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     syncToken: {
       type: 'string',
-      description: 'Latest QuickBooks sync token for a subsequent update',
+      description: 'Native QuickBooks SyncToken returned by the mutation',
       condition: { field: 'operation', value: [...MUTATION_OPERATIONS] },
+    },
+    recordVersion: {
+      type: 'string',
+      description:
+        'QuickBooks record version returned by a mutation or by-ID read; connect this value to the Sync Token input',
+      condition: {
+        field: 'operation',
+        value: [
+          ...MUTATION_OPERATIONS,
+          MASTER_DATA_OPERATION,
+          SALES_READ_OPERATION,
+          PURCHASING_READ_OPERATION,
+          ACCOUNTING_READ_OPERATION,
+        ],
+      },
     },
     voided: {
       type: 'boolean',
@@ -3065,7 +3080,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks customer onboarding',
       prompt:
-        'Build a workflow that receives an approved customer profile, creates the QuickBooks customer, and stores its ID and sync token in a Sim table.',
+        'Build a workflow that receives an approved customer profile, creates the QuickBooks customer, and stores its ID and record version in a Sim table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'customers', 'onboarding'],
@@ -3074,7 +3089,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks vendor onboarding',
       prompt:
-        'Create a workflow that receives approved vendor identity, contact, address, and 1099 details, creates the QuickBooks vendor, and stores the returned ID and sync token.',
+        'Create a workflow that receives approved vendor identity, contact, address, and 1099 details, creates the QuickBooks vendor, and stores the returned ID and record version.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'vendors', 'procurement'],
@@ -3083,7 +3098,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks catalogue maintenance',
       prompt:
-        'Build a workflow that reads filtered QuickBooks master data, creates approved non-payroll employees or Service and Non-inventory items, and safely updates exposed fields while retaining returned IDs and sync tokens.',
+        'Build a workflow that reads filtered QuickBooks master data, creates approved non-payroll employees or Service and Non-inventory items, and safely updates exposed fields while retaining returned IDs and record versions.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'catalogue', 'operations'],
@@ -3101,7 +3116,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks estimate preparation',
       prompt:
-        'Build a workflow that receives an approved customer quote and line items, creates a QuickBooks estimate, and stores its ID and sync token for controlled revisions.',
+        'Build a workflow that receives an approved customer quote and line items, creates a QuickBooks estimate, and stores its ID and record version for controlled revisions.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'estimates', 'sales'],
@@ -3110,7 +3125,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks invoice creation and delivery',
       prompt:
-        'Create a workflow that validates approved customer and item IDs, creates a QuickBooks invoice, stores its ID and sync token, then—after explicit approval—emails it or downloads its PDF for controlled delivery and archiving.',
+        'Create a workflow that validates approved customer and item IDs, creates a QuickBooks invoice, stores its ID and record version, then—after explicit approval—emails it or downloads its PDF for controlled delivery and archiving.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'invoices', 'receivables'],
@@ -3164,47 +3179,47 @@ export const QuickBooksBlockMeta = {
   skills: [
     {
       name: 'onboard-quickbooks-customers',
-      description: 'Create approved QuickBooks customers and retain their IDs and sync tokens.',
+      description: 'Create approved QuickBooks customers and retain their IDs and record versions.',
       content:
-        '# Onboard QuickBooks Customers\n\n## Steps\n1. Validate the approved customer identity and contact details.\n2. Use Create Customer with a unique display name.\n3. Store the returned `recordId` and `syncToken` for later updates.\n\n## Output\nReturn the created customer, ID, and sync token. Report duplicate-name faults for human review.',
+        '# Onboard QuickBooks Customers\n\n## Steps\n1. Validate the approved customer identity and contact details.\n2. Use Create Customer with a unique display name.\n3. Store the returned `recordId` and `recordVersion`; connect `recordVersion` to the Sync Token input for later updates.\n\n## Output\nReturn the created customer, ID, and record version. Report duplicate-name faults for human review.',
     },
     {
       name: 'onboard-quickbooks-vendors',
       description: 'Create approved QuickBooks vendors with bounded contact and 1099 fields.',
       content:
-        '# Onboard QuickBooks Vendors\n\n## Steps\n1. Validate the approved vendor identity, contact, address, and optional 1099 status.\n2. Use Create Vendor.\n3. Store the returned `recordId` and `syncToken`.\n\n## Output\nReturn the created vendor and identifiers. Do not claim to merge vendors or administer tax identifiers.',
+        '# Onboard QuickBooks Vendors\n\n## Steps\n1. Validate the approved vendor identity, contact, address, and optional 1099 status.\n2. Use Create Vendor.\n3. Store the returned `recordId` and `recordVersion`; connect `recordVersion` to the Sync Token input for later updates.\n\n## Output\nReturn the created vendor and identifiers. Do not claim to merge vendors or administer tax identifiers.',
     },
     {
       name: 'maintain-products-and-services',
       description: 'Create supported items or update exposed item fields without changing types.',
       content:
-        '# Maintain QuickBooks Products and Services\n\n## Steps\n1. Read Account master data to obtain approved account IDs.\n2. Create a Service or Non-inventory Item, or update exposed basic fields without changing the existing item Type.\n3. Store the latest item ID and sync token.\n\n## Output\nReturn the native Item record. Do not claim to create Inventory, Category, or Group items or manage their specialized fields.',
+        '# Maintain QuickBooks Products and Services\n\n## Steps\n1. Read Account master data to obtain approved account IDs.\n2. Create a Service or Non-inventory Item, or update exposed basic fields without changing the existing item Type.\n3. Store the latest item ID and record version; connect the record version to the Sync Token input for updates.\n\n## Output\nReturn the native Item record and record version. Do not claim to create Inventory, Category, or Group items or manage their specialized fields.',
     },
     {
       name: 'record-quickbooks-accounting-adjustments',
       description: 'Post approved balanced journal entries, record deposits, and review transfers.',
       content:
-        '# Record QuickBooks Accounting Adjustments\n\n## Steps\n1. Read the approved account IDs from Master Data.\n2. For a journal entry, verify that positive debit and credit lines balance and require explicit posting confirmation; for a deposit, verify the destination and source account IDs.\n3. Store the returned `recordId` and `syncToken`; use Read Accounting Transactions to review journal entries, deposits, or read-only transfers.\n4. Run an approved Trial Balance or financial statement on cash or accrual basis when an accountant requests post-adjustment review.\n\n## Output\nReturn the native accounting transaction and identifiers plus the native report hierarchy when requested. Do not claim to create transfers, replace transaction lines, or administer currencies.',
+        '# Record QuickBooks Accounting Adjustments\n\n## Steps\n1. Read the approved account IDs from Master Data.\n2. For a journal entry, verify that positive debit and credit lines balance and require explicit posting confirmation; for a deposit, verify the destination and source account IDs.\n3. Store the returned `recordId` and `recordVersion`; connect `recordVersion` to the Sync Token input for later updates, and use Read Accounting Transactions to review journal entries, deposits, or read-only transfers.\n4. Run an approved Trial Balance or financial statement on cash or accrual basis when an accountant requests post-adjustment review.\n\n## Output\nReturn the native accounting transaction and identifiers plus the native report hierarchy when requested. Do not claim to create transfers, replace transaction lines, or administer currencies.',
     },
     {
       name: 'prepare-quickbooks-estimates',
       description: 'Create and revise bounded QuickBooks estimates from approved quote details.',
       content:
-        '# Prepare QuickBooks Estimates\n\n## Steps\n1. Validate the customer, item IDs, amounts, and dates.\n2. Use Create Estimate with bounded item or description lines.\n3. For a revision, use the estimate ID and latest `syncToken` with Update Estimate.\n\n## Output\nReturn the native Estimate, ID, and latest sync token. Do not claim to email or accept the estimate.',
+        '# Prepare QuickBooks Estimates\n\n## Steps\n1. Validate the customer, item IDs, amounts, and dates.\n2. Use Create Estimate with bounded item or description lines.\n3. For a revision, use the estimate ID and latest `recordVersion` as the Update Estimate Sync Token input.\n\n## Output\nReturn the native Estimate, ID, and latest record version. Do not claim to email or accept the estimate.',
     },
     {
       name: 'create-quickbooks-invoices',
       description:
         'Create approved QuickBooks invoices and explicitly deliver or archive their documents.',
       content:
-        '# Create and Deliver QuickBooks Invoices\n\n## Steps\n1. Validate the approved customer, item IDs, positive amounts, and optional dates.\n2. Use Create Invoice with at least one bounded line.\n3. Store the returned `recordId` and `syncToken`.\n4. Only after explicit approval, use Email Transaction for one recipient or Download Transaction PDF for controlled archiving.\n5. Use Add Attachment for one approved receipt or audit note when needed, and Read Attachments to verify the metadata.\n\n## Output\nReturn the native Invoice and identifiers plus any sent status, downloaded file, or attachment ID. Do not claim bulk email, automatic resend, attachment deletion, or automatic payment collection.',
+        '# Create and Deliver QuickBooks Invoices\n\n## Steps\n1. Validate the approved customer, item IDs, positive amounts, and optional dates.\n2. Use Create Invoice with at least one bounded line.\n3. Store the returned `recordId` and `recordVersion`; connect `recordVersion` to the Sync Token input for later updates.\n4. Only after explicit approval, use Email Transaction for one recipient or Download Transaction PDF for controlled archiving.\n5. Use Add Attachment for one approved receipt or audit note when needed, and Read Attachments to verify the metadata.\n\n## Output\nReturn the native Invoice and identifiers plus any sent status, downloaded file, or attachment ID. Do not claim bulk email, automatic resend, attachment deletion, or automatic payment collection.',
     },
     {
       name: 'record-quickbooks-payables',
       description:
         'Create standalone or PO-linked bills and record bounded payments to approved Bill IDs.',
       content:
-        '# Record QuickBooks Payables\n\n## Steps\n1. Validate the vendor, expense lines, and optional A/P account.\n2. For PO-linked billing, use Read Purchasing Transactions by ID and copy each approved Purchase Order `Line[].Id` into the matching Create Bill line with its PO ID.\n3. Use Create Bill, store its ID and sync token, and inspect `linkingSucceeded` and `missingLinks`; QuickBooks may create the Bill while omitting an invalid or unavailable link.\n4. When payment is separately approved, use Create Bill Payment with bounded Bill allocations whose amounts equal the payment total.\n5. Run A/P Aging Summary or Detail with supported vendor, department, date, and aging controls for accountant review.\n\n## Output\nAlways return the created Bill ID and linkage result. Preserve the native aging report when requested. Never imply that a missing link prevented Bill creation, and never create a payment implicitly.',
+        '# Record QuickBooks Payables\n\n## Steps\n1. Validate the vendor, expense lines, and optional A/P account.\n2. For PO-linked billing, use Read Purchasing Transactions by ID and copy each approved Purchase Order `Line[].Id` into the matching Create Bill line with its PO ID.\n3. Use Create Bill, store its ID and record version, and inspect `linkingSucceeded` and `missingLinks`; QuickBooks may create the Bill while omitting an invalid or unavailable link.\n4. When payment is separately approved, use Create Bill Payment with bounded Bill allocations whose amounts equal the payment total.\n5. Run A/P Aging Summary or Detail with supported vendor, department, date, and aging controls for accountant review.\n\n## Output\nAlways return the created Bill ID, record version, and linkage result. Preserve the native aging report when requested. Never imply that a missing link prevented Bill creation, and never create a payment implicitly.',
     },
     {
       name: 'analyze-quickbooks-financial-reports',

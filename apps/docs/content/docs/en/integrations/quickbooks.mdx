@@ -201,6 +201,7 @@ List or read one account, class, customer, department, employee, item, or vendor
 |   ↳ `sparse` | boolean | Whether this is a sparse entity |
 |   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
 |   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID record |
 | `startPosition` | number | One-based position of the first record in this page |
 | `maxResults` | number | Actual number of records returned in this page |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
@@ -231,7 +232,8 @@ Create a customer in the connected QuickBooks Online company
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created QuickBooks Customer record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -280,7 +282,8 @@ Sparse-update a customer in the connected QuickBooks Online company
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated QuickBooks Customer record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -326,7 +329,8 @@ Create a non-payroll employee profile in the connected QuickBooks Online company
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created QuickBooks Employee record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -371,7 +375,8 @@ Read, merge, and full-update a non-payroll employee profile
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated QuickBooks Employee record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -416,7 +421,8 @@ Create a vendor in the connected QuickBooks Online company
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created QuickBooks Vendor record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -467,7 +473,8 @@ Read, merge, and full-update a vendor in QuickBooks Online
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated QuickBooks Vendor record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -515,7 +522,8 @@ Create a Service or Non-inventory item in QuickBooks Online
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created QuickBooks Item record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -573,7 +581,8 @@ Read, merge, and full-update an item without changing its type
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated QuickBooks Item record |
 |   ↳ `Id` | string | QuickBooks entity ID |
@@ -692,6 +701,7 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID transaction |
 | `startPosition` | number | One-based position of the first item in this response |
 | `maxResults` | number | Actual number of items reported for this response |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
@@ -720,7 +730,8 @@ Create an estimate with bounded item and description lines
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks Estimate |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -778,7 +789,8 @@ Sparse-update an estimate using its current sync token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks Estimate |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -835,7 +847,8 @@ Create an invoice without emailing or collecting payment
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks Invoice |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -893,7 +906,8 @@ Sparse-update an invoice using its current sync token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks Invoice |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -945,7 +959,8 @@ Void an invoice after explicit confirmation
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `voided` | boolean | Whether QuickBooks voided the transaction |
 | `record` | json | Voided native QuickBooks Invoice |
@@ -1005,7 +1020,8 @@ Create a sales receipt for a completed customer sale
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks SalesReceipt |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1065,7 +1081,8 @@ Sparse-update a sales receipt using its current sync token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks SalesReceipt |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1123,7 +1140,8 @@ Record a customer payment with optional bounded invoice allocations
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks Payment |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1183,7 +1201,8 @@ Read, merge, and full-update a customer payment using its current sync token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks Payment |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1235,7 +1254,8 @@ Void a customer payment after explicit confirmation
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `voided` | boolean | Whether QuickBooks voided the transaction |
 | `record` | json | Voided native QuickBooks Payment |
@@ -1292,7 +1312,8 @@ Create a customer credit memo with bounded sales lines
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks CreditMemo |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1349,7 +1370,8 @@ Read, merge, and full-update a credit memo using its current sync token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks CreditMemo |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1408,7 +1430,8 @@ Create a customer refund receipt against a required deposit account
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks RefundReceipt |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1468,7 +1491,8 @@ Sparse-update a refund receipt using its current sync token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks RefundReceipt |
 |   ↳ `Id` | string | QuickBooks sales transaction ID |
@@ -1623,6 +1647,7 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID transaction |
 | `startPosition` | number | One-based position of the first item in this response |
 | `maxResults` | number | Actual number of items reported for this response |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
@@ -1650,7 +1675,8 @@ Create a purchase order with bounded expense lines
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks PurchaseOrder |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -1723,7 +1749,8 @@ Read, merge, and full-update purchase-order header fields
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks PurchaseOrder |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -1797,7 +1824,8 @@ Create a vendor bill with optional Purchase Order line links without paying it
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `linkingRequested` | boolean | Whether any Purchase Order line links were requested |
 | `linkingSucceeded` | boolean | Whether QuickBooks returned every requested Purchase Order line link |
@@ -1881,7 +1909,8 @@ Read, merge, and full-update bill header fields using its current sync token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks Bill |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -1955,7 +1984,8 @@ Record a check or credit-card payment allocated to one or more bills
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks BillPayment |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -2026,7 +2056,8 @@ Read, merge, and full-update a BillPayment without changing allocations
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks BillPayment |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -2099,7 +2130,8 @@ Create a vendor credit without applying it to a bill
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks VendorCredit |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -2172,7 +2204,8 @@ Read, merge, and full-update vendor-credit header fields
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks VendorCredit |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -2246,7 +2279,8 @@ Record a cash, check, or credit-card purchase with bounded expense lines
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks Purchase |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -2318,7 +2352,8 @@ Read, merge, and full-update purchase header fields without changing lines
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks Purchase |
 |   ↳ `Id` | string | QuickBooks purchasing transaction ID |
@@ -2435,6 +2470,7 @@ List or read one journal entry, deposit, or transfer
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID transaction |
 | `startPosition` | number | One-based position of the first item in this response |
 | `maxResults` | number | Actual number of items reported for this response |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
@@ -2461,7 +2497,8 @@ Post a balanced journal entry after explicit confirmation
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks JournalEntry |
 |   ↳ `Id` | string | QuickBooks accounting transaction ID |
@@ -2506,7 +2543,8 @@ Sparse-update journal-entry header fields after explicit confirmation
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks JournalEntry |
 |   ↳ `Id` | string | QuickBooks accounting transaction ID |
@@ -2550,7 +2588,8 @@ Create a deposit with bounded account lines
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Created native QuickBooks Deposit |
 |   ↳ `Id` | string | QuickBooks accounting transaction ID |
@@ -2594,7 +2633,8 @@ Sparse-update deposit header fields using the current sync token and destination
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | ID of the created or updated QuickBooks entity |
-| `syncToken` | string | Latest sync token required for a subsequent update |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 | `record` | json | Updated native QuickBooks Deposit |
 |   ↳ `Id` | string | QuickBooks accounting transaction ID |

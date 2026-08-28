@@ -66,7 +66,11 @@ describe('QuickBooks documented full updates', () => {
       Line: [{ Id: 'line-1', Amount: 25 }],
       PrivateNote: 'new note',
     })
-    expect(result.output).toMatchObject({ recordId: 'bill-1', syncToken: '3' })
+    expect(result.output).toMatchObject({
+      recordId: 'bill-1',
+      syncToken: '3',
+      recordVersion: '3',
+    })
   })
 
   it('rejects a stale sync token without posting an update', async () => {

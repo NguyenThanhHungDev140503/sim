@@ -9,6 +9,7 @@ import {
   buildQuickBooksAccountingQueryUrl,
   buildQuickBooksEntityUrl,
   getQuickBooksAccountingEntity,
+  getQuickBooksRecordVersion,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
@@ -139,7 +140,12 @@ export const quickbooksReadAccountingTransactionsTool: ToolConfig<
       )
       return {
         success: true,
-        output: { transactionType: params.transactionType, item: result.item, time: result.time },
+        output: {
+          transactionType: params.transactionType,
+          item: result.item,
+          recordVersion: getQuickBooksRecordVersion(result.item),
+          time: result.time,
+        },
       }
     }
     throw new Error(`Unsupported QuickBooks accounting read mode: ${String(params.readMode)}`)
@@ -157,6 +163,11 @@ export const quickbooksReadAccountingTransactionsTool: ToolConfig<
       description: 'Native QuickBooks accounting transactions',
       optional: true,
       items: { type: 'json', properties: QUICKBOOKS_ACCOUNTING_TRANSACTION_PROPERTIES },
+    },
+    recordVersion: {
+      type: 'string',
+      description: 'Display-safe alias for the native SyncToken on a by-ID transaction',
+      optional: true,
     },
     startPosition: {
       type: 'number',

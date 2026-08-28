@@ -1054,6 +1054,7 @@ export interface QuickBooksReadMasterDataResponse extends ToolResponse {
   output: {
     recordType: QuickBooksMasterDataRecordType
     item?: QuickBooksMasterDataRecord
+    recordVersion?: string
     items?: QuickBooksMasterDataRecord[]
     startPosition?: number
     maxResults?: number
@@ -1067,6 +1068,7 @@ export interface QuickBooksReadSalesTransactionsResponse extends ToolResponse {
   output: {
     transactionType: QuickBooksSalesTransactionType
     item?: QuickBooksSalesTransaction
+    recordVersion?: string
     items?: QuickBooksSalesTransaction[]
     startPosition?: number
     maxResults?: number
@@ -1080,6 +1082,7 @@ export interface QuickBooksReadPurchasingTransactionsResponse extends ToolRespon
   output: {
     transactionType: QuickBooksPurchasingTransactionType
     item?: QuickBooksPurchasingTransaction
+    recordVersion?: string
     items?: QuickBooksPurchasingTransaction[]
     startPosition?: number
     maxResults?: number
@@ -1093,6 +1096,7 @@ export interface QuickBooksReadAccountingTransactionsResponse extends ToolRespon
   output: {
     transactionType: QuickBooksAccountingTransactionType
     item?: QuickBooksAccountingTransaction
+    recordVersion?: string
     items?: QuickBooksAccountingTransaction[]
     startPosition?: number
     maxResults?: number
@@ -1163,6 +1167,7 @@ export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: 
     record: T
     recordId: string
     syncToken: string
+    recordVersion: string
     time: string | null
   }
 }
@@ -1962,7 +1967,12 @@ export const QUICKBOOKS_MUTATION_OUTPUTS: Record<string, OutputProperty> = {
   recordId: { type: 'string', description: 'ID of the created or updated QuickBooks entity' },
   syncToken: {
     type: 'string',
-    description: 'Latest sync token required for a subsequent update',
+    description: 'Native QuickBooks SyncToken returned by the mutation',
+  },
+  recordVersion: {
+    type: 'string',
+    description:
+      'Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name',
   },
   time: {
     type: 'string',
