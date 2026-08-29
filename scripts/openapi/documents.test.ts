@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { MAX_ID_LENGTH } from '../../apps/sim/lib/api/contracts/primitives'
 import { billingOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/files-audit'
 import { knowledgeOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/knowledge'
@@ -14,6 +15,8 @@ import {
 } from '../../apps/sim/lib/api/contracts/v2/openapi/shared'
 import { tablesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/tables'
 import { workflowsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/workflows'
+import { MAX_AGENT_TOOLS_PER_BLOCK } from '../../apps/sim/lib/api/contracts/v2/workflows'
+import { MAX_MCP_TOOL_NAME_BYTES } from '../../apps/sim/lib/mcp/constants'
 import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
 
 type JsonObject = Record<string, unknown>
@@ -293,43 +296,89 @@ describe('generated OpenAPI documents', () => {
     )
   })
 
+  it('publishes Agent tools as named integration, custom, and MCP schemas', () => {
+    const workflowsSpec = generateOpenApiDocument(workflowsOpenApiDocument)
+    const schemas = (workflowsSpec.components as JsonObject).schemas as JsonObject
+    const agentToolInput = schemas.AgentToolInput as JsonObject
+    const agentTool = schemas.AgentTool as JsonObject
+    const agentToolVariants = agentTool.oneOf as JsonObject[]
+    const integrationTool = schemas.AgentIntegrationTool as JsonObject
+    const integrationProperties = integrationTool.properties as JsonObject
+    const customTool = schemas.AgentCustomTool as JsonObject
+    const customToolVariants = customTool.anyOf as JsonObject[]
+    const inlineCustomToolProperties = customToolVariants[1].properties as JsonObject
+    const inlineCustomToolSchema = inlineCustomToolProperties.schema as JsonObject
+    const inlineCustomToolSchemaProperties = inlineCustomToolSchema.properties as JsonObject
+    const inlineFunction = inlineCustomToolSchemaProperties.function as JsonObject
+    const inlineFunctionProperties = inlineFunction.properties as JsonObject
+    const mcpTool = schemas.AgentMcpTool as JsonObject
+    const mcpProperties = mcpTool.properties as JsonObject
+    const mcpParams = mcpProperties.params as JsonObject
+    const mcpParamIdentity = (mcpParams.allOf as JsonObject[])[0]
+    const mcpParamProperties = mcpParamIdentity.properties as JsonObject
+
+    expect(agentToolVariants).toEqual([
+      { $ref: '#/components/schemas/AgentIntegrationTool' },
+      { $ref: '#/components/schemas/AgentCustomTool' },
+      { $ref: '#/components/schemas/AgentMcpTool' },
+    ])
+    expect(agentToolInput).toEqual(
+      expect.objectContaining({ type: 'array', maxItems: MAX_AGENT_TOOLS_PER_BLOCK })
+    )
+    expect(integrationProperties).toEqual(
+      expect.objectContaining({
+        type: expect.objectContaining({ type: 'string', pattern: expect.any(String) }),
+        operation: expect.objectContaining({ type: 'string' }),
+        usageControl: expect.objectContaining({ enum: ['auto', 'force', 'none'] }),
+        params: expect.objectContaining({ type: 'object' }),
+      })
+    )
+    expect(customTool).toHaveProperty('anyOf')
+    expect(inlineFunctionProperties.name).toEqual(
+      expect.objectContaining({ type: 'string', maxLength: 64 })
+    )
+    expect((mcpProperties.type as JsonObject).const).toBe('mcp')
+    expect(mcpParamProperties).toEqual(
+      expect.objectContaining({
+        serverId: expect.objectContaining({ type: 'string', maxLength: MAX_ID_LENGTH }),
+        toolName: expect.objectContaining({
+          type: 'string',
+          maxLength: MAX_MCP_TOOL_NAME_BYTES,
+        }),
+      })
+    )
+    expect(JSON.stringify(schemas.WorkflowEditOperation)).toContain(
+      '#/components/schemas/AgentToolInput'
+    )
+  })
+
   it('uses named schemas for top-level response objects and list items', () => {
     for (const document of DOCUMENTS) {
       expect(anonymousTopLevelResponseObjects(generateOpenApiDocument(document))).toEqual([])
     }
   })
 
-  it('places audit logs at the bottom of every localized API reference sidebar', () => {
-    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'zh']) {
-      const metaPath = path.resolve(
-        process.cwd(),
-        `apps/docs/content/docs/${locale}/api-reference/meta.json`
-      )
-      const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as { pages: string[] }
-      expect(meta.pages.at(-1)).toBe('(generated)/audit-logs')
-    }
+  it('places audit logs at the bottom of the API reference sidebar', () => {
+    const metaPath = path.resolve(process.cwd(), 'apps/docs/content/docs/api-reference/meta.json')
+    const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as { pages: string[] }
+    expect(meta.pages.at(-1)).toBe('(generated)/audit-logs')
   })
 
-  it('keeps localized execution guides on the v2 request and run-status wire shape', () => {
-    for (const locale of ['de', 'es', 'fr', 'ja', 'zh']) {
-      const guideRoot = path.resolve(
-        process.cwd(),
-        `apps/docs/content/docs/${locale}/api-reference`
-      )
-      const authentication = readFileSync(path.join(guideRoot, 'authentication.mdx'), 'utf8')
-      const gettingStarted = readFileSync(path.join(guideRoot, 'getting-started.mdx'), 'utf8')
-      const guides = `${authentication}\n${gettingStarted}`
+  it('keeps the execution guides on the v2 request and run-status wire shape', () => {
+    const guideRoot = path.resolve(process.cwd(), 'apps/docs/content/docs/api-reference')
+    const authentication = readFileSync(path.join(guideRoot, 'authentication.mdx'), 'utf8')
+    const gettingStarted = readFileSync(path.join(guideRoot, 'getting-started.mdx'), 'utf8')
+    const guides = `${authentication}\n${gettingStarted}`
 
-      expect(guides).not.toContain('"inputs"')
-      expect(guides).not.toContain('{ inputs:')
-      expect(guides).not.toContain('/api/jobs/')
-      expect(gettingStarted).not.toContain('jobId')
-      expect(gettingStarted).toContain('-d \'{"input": {}, "async": true}\'')
-      expect(gettingStarted).toContain(
-        '/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true'
-      )
-      expect(gettingStarted).toContain('"runId"')
-    }
+    expect(guides).not.toContain('"inputs"')
+    expect(guides).not.toContain('{ inputs:')
+    expect(guides).not.toContain('/api/jobs/')
+    expect(gettingStarted).not.toContain('jobId')
+    expect(gettingStarted).toContain('-d \'{"input": {}, "async": true}\'')
+    expect(gettingStarted).toContain(
+      '/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true'
+    )
+    expect(gettingStarted).toContain('"runId"')
   })
 
   it('serializes all documents deterministically', () => {
@@ -472,8 +521,8 @@ describe('run retention is published on both run reads', () => {
 })
 
 /**
- * Every published tag needs a sidebar entry in every locale, or its operations
- * are unbrowsable.
+ * Every published tag needs a sidebar entry, or its operations are
+ * unbrowsable.
  *
  * The specs and the reference nav are generated from different places, so a new
  * tag group ships complete — paths, schemas, examples — and simply never
@@ -481,7 +530,7 @@ describe('run retention is published on both run reads', () => {
  * were published and unreachable, and nothing failed.
  */
 describe('api-reference navigation coverage', () => {
-  it('lists every published tag group in every localized sidebar', () => {
+  it('lists every published tag group in the sidebar', () => {
     const tags = new Set<string>()
     for (const output of EXPECTED_OPERATION_COUNTS.keys()) {
       const spec = JSON.parse(readFileSync(path.resolve(process.cwd(), output), 'utf8')) as {
@@ -491,18 +540,15 @@ describe('api-reference navigation coverage', () => {
     }
     expect(tags.size).toBeGreaterThan(0)
 
-    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'zh']) {
-      const meta = JSON.parse(
-        readFileSync(
-          path.resolve(process.cwd(), `apps/docs/content/docs/${locale}/api-reference/meta.json`),
-          'utf8'
-        )
-      ) as { pages: string[] }
-      const slugs = new Set(meta.pages.map((page) => page.split('/').at(-1)))
-      const missing = [...tags]
-        .filter((tag) => !slugs.has(tag.toLowerCase().replaceAll(' ', '-')))
-        .sort()
-      expect(missing, `${locale} sidebar is missing a published tag group`).toEqual([])
-    }
+    const meta = JSON.parse(
+      readFileSync(
+        path.resolve(process.cwd(), 'apps/docs/content/docs/api-reference/meta.json'),
+        'utf8'
+      )
+    ) as { pages: string[] }
+    const slugs = new Set(meta.pages.map((page) => page.split('/').at(-1)))
+    const missing = [...tags].filter((tag) => !slugs.has(tag.toLowerCase().replaceAll(' ', '-')))
+    missing.sort()
+    expect(missing, 'sidebar is missing a published tag group').toEqual([])
   })
 })

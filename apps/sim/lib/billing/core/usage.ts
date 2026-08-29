@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, settings, user, userStats } from '@sim/db/schema'
+import { member, organization, settings, user, userStats, userStatsColumns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
@@ -23,8 +23,13 @@ import {
   resolveSubscriptionUsagePeriod,
 } from '@/lib/billing/core/reporting-period'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
+import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import {
+  getPlanWeeklyRefreshDollars,
+  isEnterprise,
+  isFree,
+  isPaid,
+} from '@/lib/billing/plan-helpers'
 import {
   canEditUsageLimit,
   getFreeTierLimit,
@@ -202,7 +207,7 @@ export async function getResolvedUserUsageData(
       // inserted, which a lagging replica can miss (this path throws on a
       // missing row). Stays on the primary deliberately.
       db
-        .select()
+        .select(userStatsColumns)
         .from(userStats)
         .where(eq(userStats.userId, userId))
         .limit(1),
@@ -260,18 +265,18 @@ export async function getResolvedUserUsageData(
     const billingPeriodStart = billingPeriod.source === 'default' ? null : billingPeriod.start
     const billingPeriodEnd = billingPeriod.source === 'default' ? null : billingPeriod.end
 
-    let dailyRefreshConsumed = 0
+    let weeklyRefreshConsumed = 0
     if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
-      const planDollars = getPlanTierDollars(subscription.plan)
-      if (planDollars > 0) {
-        dailyRefreshConsumed = await computeDailyRefreshConsumed(
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+      if (weeklyRefreshDollars > 0) {
+        weeklyRefreshConsumed = await computeWeeklyRefreshConsumed(
           {
             billingEntity: orgScoped
               ? { type: 'organization', id: subscription.referenceId }
               : { type: 'user', id: userId },
             periodStart: billingPeriodStart,
             periodEnd: billingPeriodEnd,
-            planDollars,
+            weeklyRefreshDollars,
             seats: orgScoped ? subscription.seats || 1 : undefined,
           },
           executor
@@ -279,7 +284,7 @@ export async function getResolvedUserUsageData(
       }
     }
 
-    const effectiveUsage = Math.max(0, currentUsage - dailyRefreshConsumed)
+    const effectiveUsage = Math.max(0, currentUsage - weeklyRefreshConsumed)
     const percentUsed = limit > 0 ? Math.min((effectiveUsage / limit) * 100, 100) : 0
     const isWarning = percentUsed >= 80
     const isExceeded = effectiveUsage >= limit
@@ -319,7 +324,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
   try {
     const [subscription, userStatsRecord] = await Promise.all([
       getHighestPrioritySubscription(userId),
-      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
+      db.select(userStatsColumns).from(userStats).where(eq(userStats.userId, userId)).limit(1),
     ])
 
     if (userStatsRecord.length === 0) {
@@ -571,7 +576,7 @@ export async function checkUsageStatus(userId: string): Promise<{
 export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
   const [subscription, currentUserStats] = await Promise.all([
     getHighestPrioritySubscription(userId),
-    db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
+    db.select(userStatsColumns).from(userStats).where(eq(userStats.userId, userId)).limit(1),
   ])
 
   if (currentUserStats.length === 0) {
@@ -628,7 +633,7 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
 }
 
 /**
- * Returns the effective current period usage cost for a user, with daily
+ * Returns the effective current period usage cost for a user, with weekly
  * refresh credits deducted. Org-scoped subs return the pooled sum across
  * all org members; personally-scoped subs return this user's own cost.
  */
@@ -656,15 +661,15 @@ export async function getEffectiveCurrentPeriodCost(
     return rawCost
   }
 
-  const planDollars = getPlanTierDollars(subscription.plan)
-  if (planDollars <= 0) return rawCost
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+  if (weeklyRefreshDollars <= 0) return rawCost
 
-  const refreshConsumed = await computeDailyRefreshConsumed(
+  const refreshConsumed = await computeWeeklyRefreshConsumed(
     {
       billingEntity,
       periodStart: subscription.periodStart,
       periodEnd: subscription.periodEnd ?? null,
-      planDollars,
+      weeklyRefreshDollars,
       seats: subscription.seats || 1,
     },
     executor
@@ -703,9 +708,15 @@ export async function maybeSendUsageThresholdEmail(params: {
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
       : `${baseUrl}/workspace`
+    /**
+     * Organization billing is reached through the workspace the usage occurred in
+     * — that is the only plane that serves it. Without a workspace there is no such
+     * link to build, so the account page is the honest fallback rather than a guess
+     * at which workspace the recipient would want.
+     */
     const billingSettingsLink =
-      params.scope === 'organization' && params.organizationId
-        ? `${baseUrl}/organization/${params.organizationId}/settings/billing`
+      params.scope === 'organization' && params.workspaceId
+        ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
         : `${baseUrl}/account/settings/billing`
 
     // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)

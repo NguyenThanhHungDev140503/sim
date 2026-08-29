@@ -8,6 +8,7 @@ const {
   mockGetSession,
   mockGetWorkspaceHostContext,
   mockIsForkingAvailable,
+  mockIsCustomBlocksEligibleForOrganization,
   mockIsOrganizationOnEnterprisePlan,
   mockIsOrganizationSettingsSectionAvailable,
   mockNotFound,
@@ -19,6 +20,7 @@ const {
   mockGetSession: vi.fn(),
   mockGetWorkspaceHostContext: vi.fn(),
   mockIsForkingAvailable: vi.fn(),
+  mockIsCustomBlocksEligibleForOrganization: vi.fn(),
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
   mockIsOrganizationSettingsSectionAvailable: vi.fn(),
   mockNotFound: vi.fn(() => {
@@ -40,6 +42,19 @@ vi.mock('@/components/settings/navigation', () => ({
   getOrganizationSettingsFeatures: vi.fn(() => ({})),
   isOrganizationSettingsSectionAvailable: mockIsOrganizationSettingsSectionAvailable,
   resolveWorkspaceNavigation: mockResolveWorkspaceNavigation,
+  /** Mirrors the registry-derived map; a section absent here gets no organization gate. */
+  UNIFIED_TO_ORGANIZATION_SECTION: {
+    organization: 'members',
+    billing: 'billing',
+    'access-control': 'access-control',
+    'audit-logs': 'audit-logs',
+    sso: 'sso',
+    sessions: 'sessions',
+    'data-retention': 'data-retention',
+    'data-drains': 'data-drains',
+    usage: 'usage',
+    whitelabeling: 'whitelabeling',
+  },
   workspaceSectionUsesPermissionConfig: vi.fn((section: string) =>
     ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools'].includes(section)
   ),
@@ -73,6 +88,10 @@ vi.mock('@/lib/permissions/super-user', () => ({
   isPlatformAdmin: vi.fn(() => false),
 }))
 
+vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+  isCustomBlocksEligibleForOrganization: mockIsCustomBlocksEligibleForOrganization,
+}))
+
 vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mockGetWorkspaceHostContext,
 }))
@@ -87,7 +106,15 @@ const { mockGetQueryClient, mockSectionPrefetch } = vi.hoisted(() => ({
 }))
 
 const { mockSections, mockAliases } = vi.hoisted(() => ({
-  mockSections: ['general', 'billing', 'secrets', 'sessions', 'admin', 'teammates'],
+  mockSections: [
+    'general',
+    'billing',
+    'secrets',
+    'sessions',
+    'admin',
+    'teammates',
+    'custom-blocks',
+  ],
   /** Mirrors the real alias table so a legacy segment behaves here as it does in production. */
   mockAliases: {
     subscription: 'billing',
@@ -174,6 +201,7 @@ describe('WorkspaceSettingsSectionPage unavailable sections', () => {
     mockResolveWorkspaceNavigation.mockReturnValue([])
     mockResolveWorkspaceGroup.mockResolvedValue(null)
     mockIsForkingAvailable.mockResolvedValue(false)
+    mockIsCustomBlocksEligibleForOrganization.mockResolvedValue(false)
     mockCanOpenOrganizationSettingsSection.mockResolvedValue(false)
     mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
     mockIsOrganizationSettingsSectionAvailable.mockReturnValue(true)
@@ -190,6 +218,29 @@ describe('WorkspaceSettingsSectionPage unavailable sections', () => {
     await expect(WorkspaceSettingsSectionPage(pageProps('secrets'))).rejects.toThrow(
       'NEXT_REDIRECT:/workspace/workspace-b/settings/general'
     )
+  })
+
+  it('redirects Custom Blocks for a personal workspace without resolving an org entitlement', async () => {
+    mockResolveWorkspaceNavigation.mockImplementation(({ entitlements }) =>
+      entitlements.customBlocks ? [{ id: 'custom-blocks' }] : []
+    )
+
+    await expect(WorkspaceSettingsSectionPage(pageProps('custom-blocks'))).rejects.toThrow(
+      'NEXT_REDIRECT:/workspace/workspace-b/settings/general'
+    )
+    expect(mockIsCustomBlocksEligibleForOrganization).not.toHaveBeenCalled()
+  })
+
+  it('uses the shared Custom Blocks entitlement for an organization workspace', async () => {
+    mockGetWorkspaceHostContext.mockResolvedValue(ORGANIZATION_HOST_CONTEXT)
+    mockIsCustomBlocksEligibleForOrganization.mockResolvedValue(true)
+    mockResolveWorkspaceNavigation.mockImplementation(({ entitlements }) =>
+      entitlements.customBlocks ? [{ id: 'custom-blocks' }] : []
+    )
+
+    await WorkspaceSettingsSectionPage(pageProps('custom-blocks'))
+
+    expect(mockIsCustomBlocksEligibleForOrganization).toHaveBeenCalledWith('organization-b')
   })
 
   it('redirects an organization section when the destination has no organization', async () => {

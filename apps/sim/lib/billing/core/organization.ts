@@ -1,5 +1,12 @@
 import { db } from '@sim/db'
-import { member, organization, usageLog, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  organizationColumns,
+  usageLog,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gte, lt, sql } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -10,8 +17,8 @@ import {
   getBillingPeriodUsageCostByUser,
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
+import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import { getPlanWeeklyRefreshDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
   getFreeTierLimit,
@@ -189,7 +196,7 @@ export async function getOrganizationBillingData(
   try {
     // Get organization info
     const orgRecord = await executor
-      .select()
+      .select(organizationColumns)
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
@@ -272,14 +279,14 @@ export async function getOrganizationBillingData(
       : 0
 
     if (isPaid(subscription.plan) && subscription.periodStart) {
-      const planDollars = getPlanTierDollars(subscription.plan)
-      if (planDollars > 0) {
-        const refreshConsumed = await computeDailyRefreshConsumed(
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+      if (weeklyRefreshDollars > 0) {
+        const refreshConsumed = await computeWeeklyRefreshConsumed(
           {
             billingEntity: { type: 'organization', id: subscription.referenceId },
             periodStart: subscription.periodStart,
             periodEnd: subscription.periodEnd ?? null,
-            planDollars,
+            weeklyRefreshDollars,
             seats: subscription.seats || 1,
           },
           executor
@@ -368,7 +375,7 @@ export async function updateOrganizationUsageLimit(
   try {
     // Validate the organization exists
     const orgRecord = await db
-      .select()
+      .select(organizationColumns)
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)

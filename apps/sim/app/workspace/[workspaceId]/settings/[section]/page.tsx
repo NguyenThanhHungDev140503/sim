@@ -5,8 +5,8 @@ import { notFound, redirect } from 'next/navigation'
 import {
   getOrganizationSettingsFeatures,
   isOrganizationSettingsSectionAvailable,
-  type OrganizationSettingsSection,
   resolveWorkspaceNavigation,
+  UNIFIED_TO_ORGANIZATION_SECTION,
   type WorkspaceSettingsSection,
   workspaceSectionUsesPermissionConfig,
 } from '@/components/settings/navigation'
@@ -15,6 +15,7 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import {
@@ -45,18 +46,6 @@ const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSe
   forks: 'forks',
   'custom-blocks': 'custom-blocks',
   'self-host': 'self-host',
-}
-
-const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSettingsSection>> = {
-  organization: 'members',
-  billing: 'billing',
-  'access-control': 'access-control',
-  'audit-logs': 'audit-logs',
-  sso: 'sso',
-  sessions: 'sessions',
-  'data-retention': 'data-retention',
-  'data-drains': 'data-drains',
-  whitelabeling: 'whitelabeling',
 }
 
 /**
@@ -132,7 +121,7 @@ export default async function WorkspaceSettingsSectionPage({
      * Every other section is independent of that config, so resolving the viewer's group for it
      * can never change this gate's answer.
      */
-    const [permissionGroup, forksAvailable] = await Promise.all([
+    const [permissionGroup, forksAvailable, customBlocksAvailable] = await Promise.all([
       hostContext.hostOrganizationId &&
       hostContext.ownerBilling.isEnterprise &&
       workspaceSectionUsesPermissionConfig(workspaceSection)
@@ -141,8 +130,10 @@ export default async function WorkspaceSettingsSectionPage({
       workspaceSection === 'forks'
         ? isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id)
         : Promise.resolve(false),
+      workspaceSection === 'custom-blocks' && hostContext.hostOrganizationId
+        ? isCustomBlocksEligibleForOrganization(hostContext.hostOrganizationId)
+        : Promise.resolve(false),
     ])
-    const customBlocksAvailable = !isHosted || hostContext.ownerBilling.isEnterprise
     const navigation = resolveWorkspaceNavigation({
       permission: hostContext.viewer.permission,
       permissionConfig: permissionGroup?.config ?? {},
@@ -160,7 +151,7 @@ export default async function WorkspaceSettingsSectionPage({
     }
   }
 
-  const organizationSection = ORGANIZATION_SECTION_MAP[parsed]
+  const organizationSection = UNIFIED_TO_ORGANIZATION_SECTION[parsed]
   if (organizationSection) {
     if (!isBillingEnabled && (parsed === 'billing' || parsed === 'organization')) {
       redirectToGeneralSettings(workspaceId)
@@ -170,7 +161,12 @@ export default async function WorkspaceSettingsSectionPage({
         redirectToGeneralSettings(workspaceId)
       }
     } else {
-      if (!hostContext.viewer.isHostOrganizationAdmin) {
+      /**
+       * The roster is the one organization section a plain member may open, read-only
+       * (`resolveOrganizationSectionAccess` returns `'view'` for it below). Everything
+       * else acts on the organization and stays admin-only.
+       */
+      if (organizationSection !== 'members' && !hostContext.viewer.isHostOrganizationAdmin) {
         redirectToGeneralSettings(workspaceId)
       }
       /**
