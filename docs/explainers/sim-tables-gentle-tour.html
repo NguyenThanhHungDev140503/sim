@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sim Tables: a gentle tour from grid to JSON</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #5c6b78;
+      --paper: #f7f4ee;
+      --card: #fffdf9;
+      --line: #d8d2c6;
+      --blue: #2459d3;
+      --blue-soft: #e9efff;
+      --green: #23745a;
+      --green-soft: #e5f4ed;
+      --amber: #9a6416;
+      --amber-soft: #fff1d5;
+      --purple: #6d46b6;
+      --purple-soft: #f0e9ff;
+      --red: #a33d45;
+      --red-soft: #fbeaec;
+      --shadow: 0 14px 40px rgba(34, 42, 50, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 8% 2%, rgba(36, 89, 211, 0.10), transparent 27rem),
+        radial-gradient(circle at 92% 13%, rgba(35, 116, 90, 0.08), transparent 24rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0 72px;
+    }
+
+    header, section, footer { margin-top: 32px; }
+
+    .hero {
+      padding: clamp(28px, 5vw, 58px);
+      background: rgba(255, 253, 249, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 0.77rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 18ch;
+      margin: 8px 0 18px;
+      font-size: clamp(2.35rem, 6vw, 4.7rem);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+    }
+
+    h2 {
+      max-width: 24ch;
+      margin: 0 0 12px;
+      font-size: clamp(1.65rem, 3.2vw, 2.5rem);
+      line-height: 1.12;
+      letter-spacing: -0.035em;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1.08rem;
+      line-height: 1.3;
+    }
+
+    p, li { max-width: 70ch; }
+    p { margin: 10px 0; }
+
+    .lead {
+      max-width: 64ch;
+      color: #344554;
+      font-size: 1.14rem;
+    }
+
+    dl.meta {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 6px 18px;
+      margin: 28px 0 0;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      font-size: 0.9rem;
+    }
+
+    dt { color: var(--muted); font-weight: 700; }
+    dd { margin: 0; }
+
+    .thesis {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin-top: 26px;
+    }
+
+    .thesis div {
+      min-height: 126px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--card);
+    }
+
+    .thesis strong { display: block; margin-bottom: 6px; }
+    .thesis span { color: var(--muted); font-size: 0.93rem; }
+
+    section.panel {
+      padding: clamp(24px, 4vw, 42px);
+      background: rgba(255, 253, 249, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+    }
+
+    .section-intro { color: var(--muted); }
+
+    .diagram {
+      width: 100%;
+      margin: 26px 0 18px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: #fff;
+    }
+
+    svg { display: block; width: 100%; height: auto; }
+    .svg-title { font: 700 18px ui-sans-serif, sans-serif; fill: var(--ink); }
+    .svg-body { font: 14px ui-sans-serif, sans-serif; fill: #526271; }
+    .svg-label { font: 700 12px ui-sans-serif, sans-serif; fill: #526271; letter-spacing: 0.03em; }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--card);
+    }
+
+    .card.blue { background: var(--blue-soft); border-color: #c4d2ff; }
+    .card.green { background: var(--green-soft); border-color: #b9dfd1; }
+    .card.amber { background: var(--amber-soft); border-color: #ead09f; }
+    .card.purple { background: var(--purple-soft); border-color: #d6c5f5; }
+
+    .tag {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      color: var(--muted);
+      font-size: 0.73rem;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    pre {
+      margin: 14px 0 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid #253440;
+      border-radius: 14px;
+      background: #17212b;
+      color: #eaf0f5;
+      font: 0.86rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+    }
+
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .k { color: #b6d2ff; }
+    .s { color: #b9e5c9; }
+    .n { color: #ffd393; }
+    .c { color: #98aab8; }
+
+    .annotated {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(230px, 0.8fr);
+      gap: 16px;
+      margin-top: 20px;
+      align-items: start;
+    }
+
+    .notes {
+      display: grid;
+      gap: 10px;
+    }
+
+    .note {
+      padding: 13px 14px;
+      border-left: 4px solid var(--blue);
+      border-radius: 0 12px 12px 0;
+      background: var(--blue-soft);
+      font-size: 0.9rem;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      padding: 13px 14px;
+      vertical-align: top;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th { background: #f0ece3; font-size: 0.8rem; letter-spacing: 0.03em; }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { width: 26%; font-weight: 700; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 22px;
+      counter-reset: steps;
+    }
+
+    .step {
+      position: relative;
+      min-height: 170px;
+      padding: 18px 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      counter-increment: steps;
+    }
+
+    .step::before {
+      content: counter(steps);
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .step p { color: var(--muted); font-size: 0.9rem; }
+
+    .file-map {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .file {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--card);
+    }
+
+    .file code {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--blue);
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+
+    .file p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+    .layers {
+      display: grid;
+      gap: 9px;
+      margin-top: 22px;
+    }
+
+    .layer {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: 13px;
+      background: var(--card);
+      border: 1px solid var(--line);
+    }
+
+    .layer strong { color: var(--blue); }
+    .layer span { color: var(--muted); }
+
+    .callout {
+      margin-top: 22px;
+      padding: 18px 20px;
+      border: 1px solid #b9dfd1;
+      border-radius: 16px;
+      background: var(--green-soft);
+    }
+
+    .warning {
+      margin-top: 18px;
+      padding: 18px 20px;
+      border: 1px solid #ead09f;
+      border-radius: 16px;
+      background: var(--amber-soft);
+    }
+
+    ul { margin: 14px 0 0; padding-left: 22px; }
+    li + li { margin-top: 8px; }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .summary div {
+      padding: 17px;
+      border-radius: 15px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    footer {
+      padding: 22px 4px 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 820px) {
+      .thesis, .split, .annotated, .file-map, .summary { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr 1fr; }
+      .layer { grid-template-columns: 1fr; gap: 4px; }
+    }
+
+    @media (max-width: 520px) {
+      main { width: min(100% - 18px, 1120px); padding-top: 14px; }
+      .hero, section.panel { border-radius: 18px; }
+      .flow { grid-template-columns: 1fr; }
+      dl.meta { grid-template-columns: 1fr; gap: 0; }
+      dd { margin-bottom: 8px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="eyebrow">A codebase field guide</div>
+    <h1>Sim Tables: a gentle tour from grid to JSON</h1>
+    <p class="lead">You are looking at a hybrid system: it feels like a spreadsheet, is protected and queried like a database, and stores each row's changing cells as a JSON object. This guide builds that mental model first, then shows you exactly where to look in the repository.</p>
+
+    <dl class="meta">
+      <dt>Date</dt><dd>2026-08-25</dd>
+      <dt>Input shape</dt><dd>concept</dd>
+      <dt>Subject</dt><dd>How the Sim tables module stores data and moves it through the application</dd>
+    </dl>
+
+    <div class="thesis">
+      <div><strong>It is a real database.</strong><span>Postgres holds the table definitions, rows, views, jobs, and execution state.</span></div>
+      <div><strong>It is not one SQL table per user table.</strong><span>All Sim tables share a small set of Postgres tables.</span></div>
+      <div><strong>Cells are flexible JSON.</strong><span>One row's cells live together in a queryable JSONB object, keyed by stable column IDs.</span></div>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>The whole system in one picture</h2>
+    <p class="section-intro">When you edit a cell, the request passes through a few distinct layers. Each layer has one job: render, transport, authorize, apply rules, or store.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1060 520" role="img" aria-label="The table grid sends a request through hooks, an API route, an application use case, and services into shared Postgres table definitions and row records.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#758492"/>
+          </marker>
+        </defs>
+        <rect x="28" y="44" width="180" height="98" rx="18" fill="#e9efff" stroke="#9eb6f3"/>
+        <text x="118" y="80" text-anchor="middle" class="svg-title">TableGrid</text>
+        <text x="118" y="106" text-anchor="middle" class="svg-body">what you see</text>
+        <text x="118" y="126" text-anchor="middle" class="svg-body">and interact with</text>
+
+        <rect x="232" y="44" width="180" height="98" rx="18" fill="#fff1d5" stroke="#e1bd75"/>
+        <text x="322" y="80" text-anchor="middle" class="svg-title">Query hooks</text>
+        <text x="322" y="106" text-anchor="middle" class="svg-body">fetch, cache, and</text>
+        <text x="322" y="126" text-anchor="middle" class="svg-body">optimistic updates</text>
+
+        <rect x="436" y="44" width="180" height="98" rx="18" fill="#f0e9ff" stroke="#c8acef"/>
+        <text x="526" y="80" text-anchor="middle" class="svg-title">API route</text>
+        <text x="526" y="106" text-anchor="middle" class="svg-body">checks the request</text>
+        <text x="526" y="126" text-anchor="middle" class="svg-body">against a contract</text>
+
+        <rect x="640" y="44" width="180" height="98" rx="18" fill="#fbeaec" stroke="#e6afb3"/>
+        <text x="730" y="80" text-anchor="middle" class="svg-title">Use case</text>
+        <text x="730" y="106" text-anchor="middle" class="svg-body">loads the real table</text>
+        <text x="730" y="126" text-anchor="middle" class="svg-body">and authorizes access</text>
+
+        <rect x="844" y="44" width="188" height="98" rx="18" fill="#e5f4ed" stroke="#9bcdbb"/>
+        <text x="938" y="80" text-anchor="middle" class="svg-title">Table services</text>
+        <text x="938" y="106" text-anchor="middle" class="svg-body">validate, coerce,</text>
+        <text x="938" y="126" text-anchor="middle" class="svg-body">query, and write</text>
+
+        <path d="M208 93 H228" stroke="#758492" stroke-width="2" marker-end="url(#arrow)"/>
+        <path d="M412 93 H432" stroke="#758492" stroke-width="2" marker-end="url(#arrow)"/>
+        <path d="M616 93 H636" stroke="#758492" stroke-width="2" marker-end="url(#arrow)"/>
+        <path d="M820 93 H840" stroke="#758492" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <text x="526" y="190" text-anchor="middle" class="svg-label">REAL POSTGRES STORAGE</text>
+        <path d="M938 145 V202" stroke="#758492" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="92" y="220" width="400" height="214" rx="22" fill="#ffffff" stroke="#b9c3cc" stroke-width="2"/>
+        <text x="122" y="260" class="svg-title">user_table_definitions</text>
+        <text x="122" y="291" class="svg-body">One record describes one Sim table</text>
+        <rect x="122" y="316" width="338" height="82" rx="12" fill="#e9efff"/>
+        <text x="142" y="344" class="svg-body">name: “Companies”</text>
+        <text x="142" y="368" class="svg-body">schema: { columns: [...] }</text>
+        <text x="142" y="392" class="svg-body">metadata: { widths, order, hidden... }</text>
+
+        <rect x="568" y="220" width="400" height="214" rx="22" fill="#ffffff" stroke="#b9c3cc" stroke-width="2"/>
+        <text x="598" y="260" class="svg-title">user_table_rows</text>
+        <text x="598" y="291" class="svg-body">One record describes one visible row</text>
+        <rect x="598" y="316" width="338" height="82" rx="12" fill="#e5f4ed"/>
+        <text x="618" y="344" class="svg-body">table_id: tbl_...</text>
+        <text x="618" y="368" class="svg-body">data: { "col_a": "Ada", "col_b": 93 }</text>
+        <text x="618" y="392" class="svg-body">order_key: “V”</text>
+
+        <path d="M492 326 H564" stroke="#758492" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="528" y="312" text-anchor="middle" class="svg-label">table_id</text>
+        <text x="530" y="477" text-anchor="middle" class="svg-body">The definition says what the columns mean. Each row supplies the values it actually has.</text>
+      </svg>
+    </div>
+
+    <p>The most important correction to your starting idea is this: the module <em>does</em> use a database. The unusual part is that it does not create a brand-new SQL table every time a user clicks “New table.” Instead, every user-created table is represented inside shared Postgres records.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Who calls these endpoints, and what is a “use case”?</h2>
+    <p class="section-intro">The short answer: an endpoint is a door into Sim. A use case is the meaningful action performed after someone comes through that door. “Use case” is an architecture term used by this repository—it is not special TypeScript syntax.</p>
+
+    <div class="callout">
+      <strong>Your active file is a public API door.</strong> <code>app/api/v2/tables/[tableId]/rows/[rowId]/route.ts</code> is primarily called by an outside program—a customer script, server, command-line request, or SDK—using a Sim API key in the <code>x-api-key</code> header. The first-party table grid normally calls <code>/api/table/...</code> instead, using the logged-in browser session.
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1060 500" role="img" aria-label="The Sim browser and an outside program use different API routes, which converge on the same updateTableRow use case before a service updates Postgres.">
+        <defs>
+          <marker id="door-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#758492"/>
+          </marker>
+        </defs>
+
+        <text x="530" y="34" text-anchor="middle" class="svg-label">TWO DIFFERENT DOORS, ONE SHARED ACTION</text>
+
+        <rect x="40" y="72" width="220" height="96" rx="18" fill="#e9efff" stroke="#9eb6f3"/>
+        <text x="150" y="108" text-anchor="middle" class="svg-title">Sim table grid</text>
+        <text x="150" y="136" text-anchor="middle" class="svg-body">a person edits a cell</text>
+        <text x="150" y="156" text-anchor="middle" class="svg-body">in the logged-in browser</text>
+
+        <rect x="40" y="314" width="220" height="96" rx="18" fill="#fff1d5" stroke="#e1bd75"/>
+        <text x="150" y="350" text-anchor="middle" class="svg-title">Outside program</text>
+        <text x="150" y="378" text-anchor="middle" class="svg-body">script, server, curl,</text>
+        <text x="150" y="398" text-anchor="middle" class="svg-body">or API client</text>
+
+        <rect x="326" y="72" width="270" height="96" rx="18" fill="#f0e9ff" stroke="#c8acef"/>
+        <text x="461" y="108" text-anchor="middle" class="svg-title">Internal endpoint</text>
+        <text x="461" y="136" text-anchor="middle" class="svg-body">PATCH /api/table/.../rows/...</text>
+        <text x="461" y="156" text-anchor="middle" class="svg-body">recognizes the browser session</text>
+
+        <rect x="326" y="314" width="270" height="96" rx="18" fill="#f0e9ff" stroke="#c8acef"/>
+        <text x="461" y="350" text-anchor="middle" class="svg-title">Public v2 endpoint</text>
+        <text x="461" y="378" text-anchor="middle" class="svg-body">PATCH /api/v2/tables/.../rows/...</text>
+        <text x="461" y="398" text-anchor="middle" class="svg-body">checks the x-api-key header</text>
+
+        <rect x="660" y="176" width="220" height="116" rx="20" fill="#fbeaec" stroke="#e6afb3"/>
+        <text x="770" y="214" text-anchor="middle" class="svg-title">updateTableRow</text>
+        <text x="770" y="240" text-anchor="middle" class="svg-body">the shared use case:</text>
+        <text x="770" y="262" text-anchor="middle" class="svg-body">authorize and carry out</text>
+        <text x="770" y="282" text-anchor="middle" class="svg-body">“update this row”</text>
+
+        <rect x="912" y="176" width="116" height="116" rx="20" fill="#e5f4ed" stroke="#9bcdbb"/>
+        <text x="970" y="214" text-anchor="middle" class="svg-title">Service</text>
+        <text x="970" y="240" text-anchor="middle" class="svg-body">updateRow</text>
+        <text x="970" y="264" text-anchor="middle" class="svg-body">writes to</text>
+        <text x="970" y="284" text-anchor="middle" class="svg-body">Postgres</text>
+
+        <path d="M260 120 H322" stroke="#758492" stroke-width="2" marker-end="url(#door-arrow)"/>
+        <path d="M260 362 H322" stroke="#758492" stroke-width="2" marker-end="url(#door-arrow)"/>
+        <path d="M596 120 C630 120 622 206 656 220" fill="none" stroke="#758492" stroke-width="2" marker-end="url(#door-arrow)"/>
+        <path d="M596 362 C630 362 622 276 656 248" fill="none" stroke="#758492" stroke-width="2" marker-end="url(#door-arrow)"/>
+        <path d="M880 234 H908" stroke="#758492" stroke-width="2" marker-end="url(#door-arrow)"/>
+
+        <text x="530" y="460" text-anchor="middle" class="svg-body">The doors authenticate callers differently, but the product rule for updating a row lives in one shared place.</text>
+      </svg>
+    </div>
+
+    <div class="split">
+      <article class="card blue">
+        <span class="tag">When you edit the grid</span>
+        <h3>The browser takes the internal door</h3>
+        <p><code>TableGrid</code> calls <code>useUpdateTableRow</code>. That hook sends <code>PATCH /api/table/[tableId]/rows/[rowId]</code>. The route recognizes the logged-in session and hands the request to <code>updateTableRow</code>.</p>
+      </article>
+      <article class="card amber">
+        <span class="tag">When code uses the API</span>
+        <h3>An outside program takes the v2 door</h3>
+        <p>A script or server sends <code>PATCH /api/v2/tables/[tableId]/rows/[rowId]</code> with an <code>x-api-key</code>. The v2 route checks that key and then hands the request to the same <code>updateTableRow</code> action.</p>
+      </article>
+    </div>
+
+    <h3 style="margin-top: 28px;">Read the active route as a wiring diagram</h3>
+    <div class="annotated">
+      <pre><code><span class="k">export const</span> PATCH = defineV2JsonRoute({
+  contract: v2UpdateTableRowContract,
+  auth: v2ApiKeyAuth,
+  mapInput: ({ params, body }) =&gt; ({
+    tableId: params.tableId,
+    data: body.data,
+    ...
+  }),
+  useCase: updateTableRow,
+  present: (result) =&gt; ({
+    data: rowDataToExternal(...)
+  }),
+})</code></pre>
+      <div class="notes">
+        <div class="note"><strong>contract</strong><br>What URL pieces and JSON body are allowed.</div>
+        <div class="note"><strong>auth</strong><br>Who is calling? For v2, check the API key.</div>
+        <div class="note"><strong>mapInput</strong><br>Turn the public request into the work order the application understands.</div>
+        <div class="note"><strong>useCase</strong><br>Which meaningful application action should run.</div>
+        <div class="note"><strong>present</strong><br>Turn the result into friendly public-API JSON.</div>
+      </div>
+    </div>
+
+    <p><code>useCase: updateTableRow</code> does <strong>not</strong> mean that line immediately calls the function. It gives the reusable action to <code>defineV2JsonRoute</code>. When a real PATCH request arrives, the route builder authenticates and validates it, then calls <code>updateTableRow.execute(...)</code>.</p>
+
+    <table>
+      <thead><tr><th>Part of your file</th><th>Plain-English meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET</code></td><td>An API client asks, “Give me this row.” The route runs <code>readTableRow</code>.</td></tr>
+        <tr><td><code>PATCH</code></td><td>An API client asks, “Change part of this row.” The route runs <code>updateTableRow</code>.</td></tr>
+        <tr><td><code>DELETE</code></td><td>An API client asks, “Delete this row.” The route runs <code>deleteTableRow</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="layers">
+      <div class="layer"><strong>Endpoint / route</strong><span>The front desk. It knows HTTP, authentication, request shape, and response shape.</span></div>
+      <div class="layer"><strong>Use case</strong><span>The named, authorized product action: “read a row,” “update a row,” or “delete a row.” It can be reused behind more than one front desk.</span></div>
+      <div class="layer"><strong>Service</strong><span>The specialist called by the use case to do lower-level table work, such as updating the row record in Postgres.</span></div>
+    </div>
+
+    <div class="warning">
+      <strong>The mental shortcut:</strong> a route answers “How did this caller enter?” A use case answers “What are they allowed to do?” A service answers “How do we perform the low-level work?”
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>A concrete example: a tiny Companies table</h2>
+    <p class="section-intro">Imagine the grid shows three columns—Company, Website, and Score—and one row. The friendly labels are for people; stable IDs are for storage.</p>
+
+    <div class="split">
+      <article class="card blue">
+        <span class="tag">Definition record</span>
+        <h3>The table's schema</h3>
+        <p>This says which columns exist and how each value should behave.</p>
+        <pre><code>{
+  <span class="k">"name"</span>: <span class="s">"Companies"</span>,
+  <span class="k">"schema"</span>: {
+    <span class="k">"columns"</span>: [
+      { <span class="k">"id"</span>: <span class="s">"col_a"</span>, <span class="k">"name"</span>: <span class="s">"Company"</span>, <span class="k">"type"</span>: <span class="s">"string"</span> },
+      { <span class="k">"id"</span>: <span class="s">"col_b"</span>, <span class="k">"name"</span>: <span class="s">"Website"</span>, <span class="k">"type"</span>: <span class="s">"string"</span> },
+      { <span class="k">"id"</span>: <span class="s">"col_c"</span>, <span class="k">"name"</span>: <span class="s">"Score"</span>,   <span class="k">"type"</span>: <span class="s">"number"</span> }
+    ]
+  }
+}</code></pre>
+      </article>
+
+      <article class="card green">
+        <span class="tag">Row record</span>
+        <h3>The row's cell data</h3>
+        <p>This is the flexible JSONB object stored in <code>user_table_rows.data</code>.</p>
+        <pre><code>{
+  <span class="k">"id"</span>: <span class="s">"row_123"</span>,
+  <span class="k">"tableId"</span>: <span class="s">"tbl_456"</span>,
+  <span class="k">"data"</span>: {
+    <span class="k">"col_a"</span>: <span class="s">"Acme"</span>,
+    <span class="k">"col_b"</span>: <span class="s">"acme.test"</span>,
+    <span class="k">"col_c"</span>: <span class="n">93</span>
+  }
+}</code></pre>
+      </article>
+    </div>
+
+    <div class="callout">
+      <strong>Missing keys are normal.</strong> If you add a new “Industry” column, old rows do not need to be rewritten immediately. A row without that column's ID simply displays an empty cell.
+    </div>
+
+    <div class="annotated">
+      <pre><code><span class="c">// packages/db/schema.ts</span>
+schema: <span class="k">jsonb</span>(<span class="s">'schema'</span>).notNull()
+
+<span class="c">// The same file, on user_table_rows</span>
+data: <span class="k">jsonb</span>(<span class="s">'data'</span>).notNull()
+
+<span class="c">// apps/sim/lib/table/types.ts</span>
+<span class="k">export type</span> RowData = Record&lt;string, JsonValue&gt;</code></pre>
+      <div class="notes">
+        <div class="note"><strong>JSONB</strong> is Postgres's queryable JSON format. It can be filtered and indexed; it is not just an unstructured text file.</div>
+        <div class="note"><strong>RowData</strong> is intentionally broad because different columns may hold text, numbers, booleans, dates, arrays, or nested JSON.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Why columns have IDs as well as names</h2>
+    <p class="section-intro">A column's name is a label you may change. Its ID is its permanent address. Keeping those separate prevents a simple rename from becoming a rewrite of every row.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1020 350" role="img" aria-label="Renaming a column changes its display name but leaves its stable ID and stored row key unchanged.">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#758492"/>
+          </marker>
+        </defs>
+        <text x="182" y="42" text-anchor="middle" class="svg-label">BEFORE RENAME</text>
+        <rect x="42" y="66" width="280" height="110" rx="18" fill="#e9efff" stroke="#9eb6f3"/>
+        <text x="68" y="105" class="svg-title">Column definition</text>
+        <text x="68" y="135" class="svg-body">id: col_c</text>
+        <text x="68" y="158" class="svg-body">name: Score</text>
+        <rect x="42" y="202" width="280" height="86" rx="18" fill="#e5f4ed" stroke="#9bcdbb"/>
+        <text x="68" y="238" class="svg-title">Stored row</text>
+        <text x="68" y="266" class="svg-body">{ "col_c": 93 }</text>
+
+        <path d="M360 176 H650" stroke="#758492" stroke-width="3" marker-end="url(#arrow2)"/>
+        <rect x="420" y="135" width="170" height="80" rx="40" fill="#fff1d5" stroke="#e1bd75"/>
+        <text x="505" y="170" text-anchor="middle" class="svg-title">Rename</text>
+        <text x="505" y="194" text-anchor="middle" class="svg-body">Score → FitScore</text>
+
+        <text x="838" y="42" text-anchor="middle" class="svg-label">AFTER RENAME</text>
+        <rect x="698" y="66" width="280" height="110" rx="18" fill="#f0e9ff" stroke="#c8acef"/>
+        <text x="724" y="105" class="svg-title">Column definition</text>
+        <text x="724" y="135" class="svg-body">id: col_c</text>
+        <text x="724" y="158" class="svg-body">name: FitScore</text>
+        <rect x="698" y="202" width="280" height="86" rx="18" fill="#e5f4ed" stroke="#9bcdbb"/>
+        <text x="724" y="238" class="svg-title">Stored row</text>
+        <text x="724" y="266" class="svg-body">{ "col_c": 93 }</text>
+        <text x="510" y="327" text-anchor="middle" class="svg-body">Only the display label changes. The cell's address and value stay put.</text>
+      </svg>
+    </div>
+
+    <div class="warning">
+      <strong>There is no automatic global translator.</strong> <code>column-keys.ts</code> is a toolbox of pure functions. A route or use case must explicitly say which vocabulary its caller speaks, build a map from the canonical table schema, and call the appropriate translator. “At the edge” means this deliberate handoff—not middleware that silently rewrites every object.
+    </div>
+
+    <h3 style="margin-top: 26px">The schema is the dictionary</h3>
+    <p>Suppose the canonical schema contains <code>{ id: "col_c", name: "Score" }</code>. The map builders turn that one fact into the two dictionaries needed at different boundaries:</p>
+
+    <div class="split">
+      <article class="card blue">
+        <span class="tag">Inbound dictionary</span>
+        <h3><code>buildIdByName(schema)</code></h3>
+        <pre><code>Map {
+  <span class="s">"Score"</span> → <span class="s">"col_c"</span>
+}</code></pre>
+        <p>A public caller sends a recognizable name. The application converts it into the storage address.</p>
+      </article>
+      <article class="card green">
+        <span class="tag">Outbound dictionary</span>
+        <h3><code>buildNameById(schema)</code></h3>
+        <pre><code>Map {
+  <span class="s">"col_c"</span> → <span class="s">"Score"</span>
+}</code></pre>
+        <p>A public response starts with stored IDs and converts them back into labels the caller knows.</p>
+      </article>
+    </div>
+
+    <p><code>getColumnId(column)</code> is the small compatibility rule underneath both dictionaries: use <code>column.id</code> when present, otherwise use <code>column.name</code> for an old pre-ID column whose rows were originally stored by name.</p>
+
+    <h3 style="margin-top: 30px">Journey 1: an external program asks Sim to change one cell</h3>
+    <p>There is no actor called “a v2 API” spontaneously writing a small object. A person or another program first obtains a Sim API key and the IDs of the workspace, table, and row. That external program—perhaps a server, command-line script, or API client—then sends a complete HTTP request to Sim's v2 endpoint.</p>
+
+    <p>Here is an illustrative request to change the existing row <code>row_123</code> in table <code>tbl_companies</code>. The IDs and API key below are placeholders, but the request's structure matches the contract:</p>
+
+    <pre><code><span class="k">PATCH</span> /api/v2/tables/<span class="s">tbl_companies</span>/rows/<span class="s">row_123</span> HTTP/1.1
+<span class="k">x-api-key:</span> &lt;a valid Sim API key&gt;
+<span class="k">Content-Type:</span> application/json
+
+{
+  <span class="k">"workspaceId"</span>: <span class="s">"ws_sales"</span>,
+  <span class="k">"data"</span>: {
+    <span class="k">"Score"</span>: <span class="n">97</span>
+  }
+}</code></pre>
+
+    <p>The complete JSON body has two top-level fields: <code>workspaceId</code> and <code>data</code>. Only the object nested under <code>data</code> describes cell changes. <code>Score</code> is the human-facing column name and <code>97</code> is the new value. The table ID and row ID are in the URL path; the API key is in a header; the workspace ID and cell patch are in the JSON body.</p>
+
+    <div class="warning">
+      <strong>The client does not send <code>dataKeying</code> or <code>strictWrite</code>.</strong> Those are private instructions added by the route after it has parsed the public request. They are not fields in the public HTTP body.
+    </div>
+
+    <div class="flow">
+      <article class="step"><h3>Client sends HTTP</h3><p>The external program sends the URL, API-key header, and full JSON body shown above.</p></article>
+      <article class="step"><h3>Route parses it</h3><p>The route builder authenticates the key and validates the path and body against <code>v2UpdateTableRowContract</code>.</p></article>
+      <article class="step"><h3>Route builds input</h3><p><code>mapInput</code> copies <code>body.data</code> and adds <code>dataKeying: 'names'</code> plus <code>strictWrite: true</code>.</p></article>
+      <article class="step"><h3>Application writes</h3><p>The use case translates <code>Score → col_c</code>. The row service validates <code>97</code> as a number and merges it into JSONB.</p></article>
+    </div>
+
+    <div class="annotated">
+      <pre><code><span class="c">// app/api/v2/tables/[tableId]/rows/[rowId]/route.ts</span>
+mapInput: ({ params, body }) =&gt; ({
+  tableId: params.tableId,            <span class="c">// from the URL</span>
+  rowId: params.rowId,                <span class="c">// from the URL</span>
+  assertedWorkspaceId: body.workspaceId,
+  data: body.data,                    <span class="c">// { "Score": 97 }</span>
+  strictWrite: <span class="k">true</span>,                 <span class="c">// added by route</span>
+  dataKeying: <span class="s">'names'</span> <span class="k">as const</span>, <span class="c">// added by route</span>
+})
+
+<span class="c">// lib/table/application/rows.ts</span>
+<span class="k">const</span> data = rowDataToStorage(
+  input.data,
+  context.table,
+  input.dataKeying,
+  input.strictWrite
+)
+
+<span class="c">// Inside rowDataToStorage</span>
+<span class="k">const</span> idByName = buildIdByName(table.schema)
+<span class="k">if</span> (strict) assertKnownColumnNames(data, idByName)
+<span class="k">return</span> rowDataNameToId(data, idByName)</code></pre>
+      <div class="notes">
+        <div class="note"><strong>What happened to the request envelope?</strong> Authentication consumes the header. Contract parsing separates URL parameters from the body. <code>mapInput</code> then reshapes those pieces into an internal work order.</div>
+        <div class="note"><strong>Why the use case?</strong> The route adapter must not query protected table data. The authorized use case is where the canonical schema becomes available.</div>
+        <div class="note"><strong>Why the explicit <code>dataKeying</code> flag?</strong> Feeding an already ID-keyed row through the name translator would treat every ID as unknown and lose the cells.</div>
+        <div class="note"><strong>Why strict mode?</strong> <code>rowDataNameToId</code> omits names it cannot map. v2 checks first and returns an “Unknown column” error instead of silently dropping a typo.</div>
+      </div>
+    </div>
+
+    <p>After the update succeeds, the endpoint responds to that same external program. The public response contains the row ID, the complete current row data translated back to column names, and timestamps. For example:</p>
+
+    <pre><code><span class="k">HTTP/1.1</span> 200 OK
+<span class="k">Content-Type:</span> application/json
+
+{
+  <span class="k">"data"</span>: {
+    <span class="k">"id"</span>: <span class="s">"row_123"</span>,
+    <span class="k">"data"</span>: {
+      <span class="k">"Company"</span>: <span class="s">"Acme"</span>,
+      <span class="k">"Score"</span>: <span class="n">97</span>
+    },
+    <span class="k">"createdAt"</span>: <span class="s">"2026-08-20T16:00:00.000Z"</span>,
+    <span class="k">"updatedAt"</span>: <span class="s">"2026-08-25T21:31:53.000Z"</span>
+  }
+}</code></pre>
+
+    <p>This response is illustrative: a real row may contain different or additional cells, and its timestamps will differ. The important point is that the request's <code>data</code> is a partial patch, while the successful response describes the current row.</p>
+
+    <h3 style="margin-top: 30px">Why the same line appears in your open <code>rows/route.ts</code></h3>
+    <p>Your open file handles the collection of rows rather than one row identified by <code>rowId</code>. Its callers still send complete requests. The exact public body depends on the operation:</p>
+
+    <table>
+      <thead><tr><th>Operation</th><th>Public request body</th><th>Which values are name-keyed?</th></tr></thead>
+      <tbody>
+        <tr><td>Create one row<br><code>POST /rows</code></td><td><code>{ "workspaceId": "ws_sales", "data": { "Score": 97 } }</code></td><td>The nested <code>data</code> object.</td></tr>
+        <tr><td>Create several rows<br><code>POST /rows</code></td><td><code>{ "workspaceId": "ws_sales", "rows": [{ "Score": 97 }, { "Score": 88 }] }</code></td><td>Each object inside <code>rows</code>.</td></tr>
+        <tr><td>Update matching rows<br><code>PATCH /rows</code></td><td><code>{ "workspaceId": "ws_sales", "filter": { "all": [{ "field": "Company", "op": "eq", "value": "Acme" }] }, "data": { "Score": 97 }, "limit": 10 }</code></td><td>The nested <code>data</code> object; <code>filter.field</code> also arrives as a column name and is translated separately.</td></tr>
+      </tbody>
+    </table>
+
+    <p>In every branch, <code>dataKeying: 'names'</code> is the route telling the use case how to interpret the cell objects it extracted from the larger request. The flag does not claim the entire request is <code>{ "Score": 97 }</code>.</p>
+
+    <h3 style="margin-top: 30px">Journey 2: an API client asks Sim to return rows</h3>
+    <p>The external program sends a GET request to a v2 rows endpoint with its API key and workspace query parameter. The database and row service return stored cell data such as <code>{ "col_c": 97 }</code>. Before Sim constructs the HTTP response, the route's presenter uses the authorized table schema to turn that into the public, name-keyed form <code>{ "Score": 97 }</code>.</p>
+
+    <div class="annotated">
+      <pre><code><span class="c">// app/api/v2/tables/[tableId]/rows/route.ts</span>
+<span class="k">const</span> toNamedRow = namedRowMapper(table.schema.columns)
+<span class="k">return</span> {
+  data: rows.map((row) => toApiRow(row, toNamedRow))
+}
+
+<span class="c">// Stored → public</span>
+{ <span class="s">"col_c"</span>: <span class="n">97</span> }
+          ↓
+{ <span class="s">"Score"</span>: <span class="n">97</span> }</code></pre>
+      <div class="notes">
+        <div class="note">Outbound row translation deliberately lives in <code>cell-format.ts</code>, not <code>column-keys.ts</code>.</div>
+        <div class="note">That mapper changes both the row key and, for a select column, the stored option ID into the option name. Fusing those operations prevents a public response such as <code>{ status: "opt_7" }</code>.</div>
+        <div class="note">Keys left behind by a recently deleted column are omitted because no current schema column gives them a public meaning.</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 30px">Journey 3: you edit a cell in Sim's browser grid</h3>
+    <p>The first-party grid has already fetched the table definition and built each display column's internal <code>key</code> with <code>getColumnId(column)</code>. When you edit a Score cell, the grid's mutation code constructs the smaller cell patch below. Its React Query hook then places that patch inside the full internal API request body with the workspace ID:</p>
+
+    <pre><code><span class="c">// table-grid.tsx; columnName is actually the stable column key here</span>
+mutateRef.current({
+  rowId,
+  data: { [columnName]: value }  <span class="c">// { "col_c": 97 }</span>
+})</code></pre>
+
+    <p>The internal request is sent to <code>PATCH /api/table/[tableId]/rows/[rowId]</code> using your logged-in browser session. Its full JSON body is shaped like <code>{ "workspaceId": "ws_sales", "data": { "col_c": 97 } }</code>. The internal route chooses <code>dataKeying: 'ids'</code>. In <code>rowDataToStorage</code>, the ID branch simply returns the nested <code>data</code> object unchanged. The response presenter also returns ID-keyed data to the session caller, so React Query can merge it directly into the ID-keyed cache. No name round trip occurs.</p>
+
+    <table>
+      <thead><tr><th>Caller</th><th>Vocabulary on the wire</th><th>Where conversion happens</th></tr></thead>
+      <tbody>
+        <tr><td>Workspace grid</td><td>Column IDs</td><td>None for ordinary rows; the grid already uses <code>getColumnId</code>.</td></tr>
+        <tr><td>v2 public API</td><td>Column names</td><td>Inbound in <code>application/rows.ts</code>; outbound in route presenters via <code>namedRowMapper</code>.</td></tr>
+        <tr><td>Delegated workflow caller on internal routes</td><td>Column names</td><td><code>rowKeyingForPrincipal</code> selects the name path; the same use case normalizes the write.</td></tr>
+        <tr><td>CSV and exports</td><td>Column names</td><td>Import/export boundaries build the maps once and convert rows while streaming.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top: 30px">Your open v2 <code>find</code> route is a smaller round trip</h3>
+    <p><code>apps/sim/app/api/v2/tables/[tableId]/rows/find/route.ts</code> passes the name-keyed predicate and sort to <code>findTableRows</code>. The use case converts predicate fields and sort fields to storage IDs before querying. A predicate needs one extra conversion: select option <em>names</em> must become stored option <em>IDs</em>, so it uses <code>predicateToStorage</code> rather than only <code>predicateNamesToIds</code>.</p>
+
+    <div class="flow">
+      <article class="step"><h3>Public search</h3><p>Predicate field <code>Score</code>, or select field/value names, arrive from v2.</p></article>
+      <article class="step"><h3>Storage query</h3><p>The use case converts column names to IDs; select operands also become option IDs.</p></article>
+      <article class="step"><h3>Match result</h3><p><code>findRowMatches</code> reports the matching stored column as <code>col_c</code>.</p></article>
+      <article class="step"><h3>Public response</h3><p>The presenter calls <code>columnNameById(table.schema)</code> and returns <code>column: "Score"</code>.</p></article>
+    </div>
+
+    <p>That is the complete meaning of “translate at the edge”: each outward-facing surface chooses a human vocabulary, but translation only occurs at the specific inbound normalization or outbound presentation point where the authorized canonical schema is in hand.</p>
+
+    <div class="warning">
+      <strong>This is a major design rule for new features.</strong> If something refers to a column over time—saved views, filters, workflow inputs, workflow outputs, widths, pinned state—it should normally refer to the stable ID, not the display name.
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>What happens when you edit one cell</h2>
+    <p class="section-intro">The system gives you an instant-looking edit while still letting the server be the final authority.</p>
+
+    <div class="flow">
+      <article class="step"><h3>The grid changes locally</h3><p><code>TableGrid</code> starts the mutation. React Query temporarily patches its cached row, so the interface feels immediate.</p></article>
+      <article class="step"><h3>The route receives a typed request</h3><p><code>requestJson</code> and the shared route contract agree on the request and response shape.</p></article>
+      <article class="step"><h3>The use case checks context</h3><p>The application layer loads the canonical table, verifies workspace access, and chooses name-keyed or ID-keyed handling.</p></article>
+      <article class="step"><h3>The service writes safely</h3><p>The row service merges the patch, coerces values, validates size and uniqueness, then updates the JSONB object.</p></article>
+    </div>
+
+    <div class="annotated">
+      <pre><code><span class="c">// Simplified shape of the real update</span>
+existing: { <span class="s">"col_a"</span>: <span class="s">"Acme"</span>, <span class="s">"col_c"</span>: <span class="n">93</span> }
+patch:    { <span class="s">"col_c"</span>: <span class="n">97</span> }
+
+merged:   { <span class="s">"col_a"</span>: <span class="s">"Acme"</span>, <span class="s">"col_c"</span>: <span class="n">97</span> }
+
+<span class="c">// rows/service.ts persists a JSONB merge patch</span>
+data = user_table_rows.data || patch</code></pre>
+      <div class="notes">
+        <div class="note">Only the changed cell needs to cross the wire; the row service reconstructs and validates the full result.</div>
+        <div class="note">If the server rejects the edit, React Query restores the earlier cache. If it accepts, the returned value becomes authoritative.</div>
+        <div class="note">Other viewers receive table events and refresh or patch their caches, so collaboration stays live.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Column types are behavior, not SQL columns</h2>
+    <p class="section-intro">A “number column” does not create a Postgres numeric column. The value still lives inside JSONB, while a registry explains how that value should be edited, validated, displayed, filtered, sorted, and converted.</p>
+
+    <table>
+      <thead><tr><th>Registry responsibility</th><th>Plain-language meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>coerce</code></td><td>Can input such as <code>"42"</code> safely become the number <code>42</code>?</td></tr>
+        <tr><td><code>validateCell</code></td><td>Does the stored value actually fit this column's promise?</td></tr>
+        <tr><td><code>formatForDisplay</code></td><td>What should the person see in the grid or an export?</td></tr>
+        <tr><td><code>editor</code></td><td>Should the cell use a text box, date control, select menu, or toggle?</td></tr>
+        <tr><td><code>jsonbCast</code></td><td>When sorting or comparing inside Postgres, should JSON text be treated as a number or timestamp?</td></tr>
+        <tr><td><code>ownedMetadata</code></td><td>Does this type carry extra configuration, such as select options or a currency code?</td></tr>
+      </tbody>
+    </table>
+
+    <p>The registry lives in <code>apps/sim/lib/table/column-types/</code>. The available types are currently text, number, currency, boolean, date, JSON, and select. Each has its own file, and <code>registry.ts</code> is the completeness gate that makes TypeScript complain if a new type is only partially wired.</p>
+  </section>
+
+  <section class="panel">
+    <h2>The supporting records around the two core records</h2>
+    <p class="section-intro">You can understand ordinary rows and columns with just <code>user_table_definitions</code> and <code>user_table_rows</code>. These side records explain the richer product behavior.</p>
+
+    <table>
+      <thead><tr><th>Postgres record</th><th>Why it exists</th></tr></thead>
+      <tbody>
+        <tr><td><code>table_views</code></td><td>Saves a named filter, sort, hidden columns, widths, order, and pinned columns without mixing concurrent view edits into one big metadata blob.</td></tr>
+        <tr><td><code>table_jobs</code></td><td>Tracks long-running imports, exports, bulk deletes, backfills, and updates, including progress and cancellation.</td></tr>
+        <tr><td><code>table_row_executions</code></td><td>Tracks workflow or enrichment status for one row and one workflow group. Output values still land in the normal row JSON.</td></tr>
+        <tr><td><code>table_run_dispatches</code></td><td>Tracks a user's “run this column / these rows” gesture while work is fanned out in batches.</td></tr>
+        <tr><td><code>user_table_row_secret_provenance</code></td><td>Keeps security provenance beside the row without making the frequently-read cell JSON heavier.</td></tr>
+      </tbody>
+    </table>
+
+    <p>These are called “sidecars” in parts of the code: extra records attached to the main table or row for concerns that deserve their own indexes, lifecycle, or write pattern.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Your file-by-file walking tour</h2>
+    <p class="section-intro">Read these in this order. It moves from the storage truth, through domain rules, toward the interface you see.</p>
+
+    <div class="file-map">
+      <article class="file"><code>packages/db/schema.ts</code><p>Start around <code>userTableDefinitions</code> and <code>userTableRows</code>. This is the physical Postgres shape and the clearest answer to “where does the data live?”</p></article>
+      <article class="file"><code>apps/sim/lib/table/types.ts</code><p>Read <code>ColumnDefinition</code>, <code>TableSchema</code>, <code>TableDefinition</code>, <code>TableRow</code>, and <code>RowData</code>. This is the module's vocabulary.</p></article>
+      <article class="file"><code>apps/sim/lib/table/column-keys.ts</code><p>Learn why storage uses column IDs and why public boundaries often use names. This file prevents renames from breaking references.</p></article>
+      <article class="file"><code>apps/sim/lib/table/column-types/</code><p>See how a JSON value gains type-specific behavior across validation, editing, display, filters, sorting, and conversion.</p></article>
+      <article class="file"><code>apps/sim/lib/table/service.ts</code><p>Table-level operations: create, fetch, list, rename, move, update metadata and locks, archive, and restore.</p></article>
+      <article class="file"><code>apps/sim/lib/table/rows/service.ts</code><p>Row-level machinery: insert, query, paginate, update, upsert, and delete. This is large; begin with <code>insertRow</code>, <code>queryRows</code>, and <code>updateRow</code>.</p></article>
+      <article class="file"><code>apps/sim/lib/table/columns/service.ts</code><p>Schema mutations: add, rename, retype, constrain, and delete columns. Notice that rename is metadata-only because values use stable IDs.</p></article>
+      <article class="file"><code>apps/sim/lib/table/application/</code><p>The authorized use cases. These load canonical context, enforce access, call the lower-level services, record audits, and emit change signals.</p></article>
+      <article class="file"><code>apps/sim/lib/api/contracts/tables.ts</code><p>The shared HTTP promise between server and client: parameters, bodies, and response shapes.</p></article>
+      <article class="file"><code>apps/sim/app/api/table/</code><p>Internal route adapters. A compact example is <code>[tableId]/rows/[rowId]/route.ts</code>: it maps HTTP into the shared row use cases.</p></article>
+      <article class="file"><code>apps/sim/hooks/queries/tables.ts</code><p>The client cache and mutations. Look at infinite row loading and the optimistic single-cell update.</p></article>
+      <article class="file"><code>apps/sim/app/workspace/[workspaceId]/tables/[tableId]/</code><p>The page experience: <code>table.tsx</code> orchestrates the surface, while <code>components/table-grid/</code> renders and edits the grid.</p></article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>A request crosses these ownership layers</h2>
+    <p class="section-intro">When you add a feature, place each part where its responsibility already lives. This is the architectural habit that matters more than memorizing individual functions.</p>
+
+    <div class="layers">
+      <div class="layer"><strong>Component</strong><span>Interaction and presentation: what the user clicks, sees, selects, drags, or edits.</span></div>
+      <div class="layer"><strong>React Query hook</strong><span>Network call, caching, optimistic behavior, and targeted refetching.</span></div>
+      <div class="layer"><strong>API contract</strong><span>The exact request and response shapes shared by client and server.</span></div>
+      <div class="layer"><strong>Route adapter</strong><span>Authentication, rate policy, contract parsing, input mapping, and response presentation.</span></div>
+      <div class="layer"><strong>Application use case</strong><span>Canonical table lookup, workspace scope check, authorization, audit, and domain effects.</span></div>
+      <div class="layer"><strong>Service</strong><span>The reusable table behavior and transaction: validate, query, mutate, and preserve invariants.</span></div>
+      <div class="layer"><strong>DB schema</strong><span>The durable physical shape, constraints, indexes, and cascading relationships.</span></div>
+    </div>
+
+    <div class="callout">
+      <strong>A useful test:</strong> ask, “Would a workflow tool, API client, and browser grid need the same rule?” If yes, that rule probably belongs in the application or service layer—not only in the component or route.
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>The advanced machinery you can postpone</h2>
+    <p class="section-intro">Do not try to understand the entire directory before making progress. These systems matter, but they are separate threads you can open only when your feature touches them.</p>
+
+    <div class="split">
+      <article class="card amber"><h3>Pagination and ordering</h3><p>Rows have a fractional <code>orderKey</code> so inserting between two rows does not require renumbering the entire table. Infinite queries use cursors for efficient deep scrolling.</p></article>
+      <article class="card purple"><h3>Filters and sorts</h3><p>The query builder turns predicates into Postgres expressions that reach into JSONB. The column type registry supplies numeric and date casts.</p></article>
+      <article class="card blue"><h3>Workflow columns</h3><p><code>schema.workflowGroups</code> maps table columns to workflow inputs and outputs. Results go into normal row data; execution status goes into a sidecar.</p></article>
+      <article class="card green"><h3>Realtime behavior</h3><p>Table events feed an SSE stream for schema, metadata, edit, workflow status, and view changes. Presence and remote selections use the collaboration room.</p></article>
+      <article class="card amber"><h3>Large operations</h3><p>Imports, exports, filtered deletes, backfills, and large updates become jobs so the request does not have to stay open while thousands of rows are processed.</p></article>
+      <article class="card purple"><h3>Locks and provenance</h3><p>Mutation locks protect schema and row verbs. Secret provenance tracks whether values derived from secrets may safely re-enter model execution.</p></article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Common wrong turns to avoid</h2>
+    <ul>
+      <li><strong>“JSON means there is no schema.”</strong> The schema is explicit in <code>user_table_definitions.schema</code>, and writes are coerced and validated against it.</li>
+      <li><strong>“Each visual column must be a physical Postgres column.”</strong> Visual cell values are keys inside the row's JSONB object.</li>
+      <li><strong>“Column names are safe references.”</strong> Names are labels. Long-lived internal references use stable column IDs.</li>
+      <li><strong>“Adding a column must rewrite every row.”</strong> Usually it only updates the table schema; absent row keys render empty.</li>
+      <li><strong>“Client validation is enough.”</strong> Workflows and APIs can bypass the grid, so shared rules belong on the server path.</li>
+      <li><strong>“A new feature only needs a UI change.”</strong> Durable behavior often spans storage, types, contracts, authorization, services, cache reconciliation, and events.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>The mental model to carry into your feature</h2>
+    <div class="summary">
+      <div><strong>Definition</strong><br>A table is a record containing its identity, column schema, layout metadata, limits, and locks.</div>
+      <div><strong>Rows</strong><br>Every visible row is another record whose <code>data</code> field is JSONB keyed by stable column IDs.</div>
+      <div><strong>Behavior</strong><br>Column types explain how those JSON values are coerced, validated, rendered, filtered, sorted, and edited.</div>
+      <div><strong>Boundaries</strong><br>The browser, public APIs, workflows, and background jobs all converge on authorized use cases and shared services.</div>
+      <div><strong>Rich features</strong><br>Views, jobs, workflow runs, and provenance live in side records so the hot row data stays focused.</div>
+      <div><strong>Feature design</strong><br>Decide whether your change affects the definition, row JSON, a sidecar, or several layers—and keep each rule in its owning layer.</div>
+    </div>
+
+    <div class="warning">
+      <strong>If you remember only one sentence:</strong> Sim Tables are a database-backed, schema-aware grid where each row's cells are stored together as JSONB under stable column IDs.
+    </div>
+  </section>
+
+  <footer>Composed 2026-08-25 14:31:53 PDT by ce-explain</footer>
+</main>
+</body>
+</html>
