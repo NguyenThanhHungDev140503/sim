@@ -71,6 +71,7 @@ export interface ToolCatalogEntry {
     | 'load_deployment'
     | 'load_integration_tool'
     | 'load_skill'
+    | 'load_slide_layout'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_knowledge_base'
@@ -199,6 +200,7 @@ export interface ToolCatalogEntry {
     | 'load_deployment'
     | 'load_integration_tool'
     | 'load_skill'
+    | 'load_slide_layout'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_knowledge_base'
@@ -2348,32 +2350,67 @@ export const Ffmpeg: ToolCatalogEntry = {
         type: 'string',
         description: 'Target format/extension for convert (e.g. mp4, mp3, wav, gif).',
       },
-      height: {
-        type: 'number',
-        description:
-          'Target height in pixels (scale_pad). 16-4096, and width x height must not exceed 4096 x 2304.',
-        minimum: 16,
-        maximum: 4096,
-      },
+      height: { type: 'number', description: 'Target height in pixels (scale_pad).' },
       inputs: {
         type: 'object',
         description:
-          'Workspace files this tool reads. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
         properties: {
-          files: {
+          directories: {
             type: 'array',
-            description: 'Workspace files to read, in the order this operation expects them.',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
-                  description: 'Canonical VFS file path, e.g. "files/Reports/clip.mp4".',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
                 },
               },
               required: ['path'],
             },
-            maxItems: 20,
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
           },
         },
       },
@@ -2405,7 +2442,8 @@ export const Ffmpeg: ToolCatalogEntry = {
       },
       outputs: {
         type: 'object',
-        description: "Workspace files to create or overwrite with this tool's result.",
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
         properties: {
           files: {
             type: 'array',
@@ -2414,6 +2452,11 @@ export const Ffmpeg: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
                 mimeType: {
                   type: 'string',
                   description: 'Optional MIME type override when inference is not enough.',
@@ -2425,7 +2468,12 @@ export const Ffmpeg: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/clip.mp4".',
+                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
                 },
               },
               required: ['path', 'mode'],
@@ -2444,13 +2492,7 @@ export const Ffmpeg: ToolCatalogEntry = {
         type: 'number',
         description: 'Volume multiplier for the primary track (mix_audio / overlay_audio).',
       },
-      width: {
-        type: 'number',
-        description:
-          'Target width in pixels (scale_pad). 16-4096, and width x height must not exceed 4096 x 2304.',
-        minimum: 16,
-        maximum: 4096,
-      },
+      width: { type: 'number', description: 'Target width in pixels (scale_pad).' },
     },
     required: ['operation', 'inputs'],
   },
@@ -2527,20 +2569,62 @@ export const GenerateAudio: ToolCatalogEntry = {
       inputs: {
         type: 'object',
         description:
-          'Workspace files this tool reads. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
         properties: {
-          files: {
+          directories: {
             type: 'array',
-            description: 'Workspace files to read, in the order this operation expects them.',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
-                  description: 'Canonical VFS file path, e.g. "files/Reports/clip.mp4".',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
                 },
               },
               required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
             },
           },
         },
@@ -2562,7 +2646,8 @@ export const GenerateAudio: ToolCatalogEntry = {
       },
       outputs: {
         type: 'object',
-        description: "Workspace files to create or overwrite with this tool's result.",
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
         properties: {
           files: {
             type: 'array',
@@ -2571,6 +2656,11 @@ export const GenerateAudio: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
                 mimeType: {
                   type: 'string',
                   description: 'Optional MIME type override when inference is not enough.',
@@ -2582,7 +2672,12 @@ export const GenerateAudio: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/clip.mp4".',
+                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
                 },
               },
               required: ['path', 'mode'],
@@ -2624,27 +2719,70 @@ export const GenerateImage: ToolCatalogEntry = {
       inputs: {
         type: 'object',
         description:
-          'Workspace files this tool reads. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
         properties: {
-          files: {
+          directories: {
             type: 'array',
-            description: 'Workspace files to read, in the order this operation expects them.',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
-                  description: 'Canonical VFS file path, e.g. "files/Reports/clip.mp4".',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
                 },
               },
               required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
             },
           },
         },
       },
       outputs: {
         type: 'object',
-        description: "Workspace files to create or overwrite with this tool's result.",
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
         properties: {
           files: {
             type: 'array',
@@ -2653,6 +2791,11 @@ export const GenerateImage: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
                 mimeType: {
                   type: 'string',
                   description: 'Optional MIME type override when inference is not enough.',
@@ -2664,7 +2807,12 @@ export const GenerateImage: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/clip.mp4".',
+                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
                 },
               },
               required: ['path', 'mode'],
@@ -2709,20 +2857,62 @@ export const GenerateVideo: ToolCatalogEntry = {
       inputs: {
         type: 'object',
         description:
-          'Workspace files this tool reads. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
         properties: {
-          files: {
+          directories: {
             type: 'array',
-            description: 'Workspace files to read, in the order this operation expects them.',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
             items: {
               type: 'object',
               properties: {
                 path: {
                   type: 'string',
-                  description: 'Canonical VFS file path, e.g. "files/Reports/clip.mp4".',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
                 },
               },
               required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
             },
           },
         },
@@ -2750,7 +2940,8 @@ export const GenerateVideo: ToolCatalogEntry = {
       },
       outputs: {
         type: 'object',
-        description: "Workspace files to create or overwrite with this tool's result.",
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
         properties: {
           files: {
             type: 'array',
@@ -2759,6 +2950,11 @@ export const GenerateVideo: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
                 mimeType: {
                   type: 'string',
                   description: 'Optional MIME type override when inference is not enough.',
@@ -2770,7 +2966,12 @@ export const GenerateVideo: ToolCatalogEntry = {
                 },
                 path: {
                   type: 'string',
-                  description: 'Canonical destination VFS path, e.g. "files/Reports/clip.mp4".',
+                  description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
                 },
               },
               required: ['path', 'mode'],
@@ -3137,6 +3338,24 @@ export const LoadSkill: ToolCatalogEntry = {
         type: 'string',
         description:
           "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
+      },
+    },
+    required: ['name'],
+  },
+}
+
+export const LoadSlideLayout: ToolCatalogEntry = {
+  id: 'load_slide_layout',
+  name: 'load_slide_layout',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description:
+          "Layout name exactly as it appears in the Layout Library index (e.g. 'metric-cards').",
       },
     },
     required: ['name'],
@@ -5433,7 +5652,53 @@ export const TableColumns: ToolCatalogEntry = {
           column: {
             type: 'object',
             description:
-              'Column definition for add_column: { name, type, unique?, position? }; select (enum) columns also take { options: [names], multiple?: true } — options is required for select.',
+              'Column definition for add_column: { name, type, unique?, position? }. Currency optionally takes currencyCode; select takes { options: [names], multiple?: true }; reference requires referenceTableId.',
+            properties: {
+              currencyCode: {
+                type: 'string',
+                description:
+                  'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
+              },
+              multiple: {
+                type: 'boolean',
+                description:
+                  'Whether a select cell may hold several options (default false). Switching true → false fails if any row has more than one selected.',
+              },
+              name: { type: 'string' },
+              options: {
+                type: 'array',
+                description:
+                  'Choices for a select (enum) column as display names, e.g. ["Open", "Closed"]. Required when creating or converting to select. On update_column this REPLACES the whole list, matched BY NAME — send the full list including options you keep; omitting one deletes it and clears its cells. Max 100.',
+                items: { type: 'string' },
+              },
+              position: { type: 'integer' },
+              referenceTableId: {
+                type: 'string',
+                description:
+                  'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
+              },
+              type: {
+                type: 'string',
+                description:
+                  'Column type for add_column: string, number, currency, boolean, date, json, select, or reference.',
+                enum: [
+                  'string',
+                  'number',
+                  'currency',
+                  'boolean',
+                  'date',
+                  'json',
+                  'select',
+                  'reference',
+                ],
+              },
+              unique: {
+                type: 'boolean',
+                description:
+                  'Set or clear the column unique constraint (update_column; not supported on select columns)',
+              },
+            },
+            required: ['name', 'type'],
           },
           columnName: {
             type: 'string',
@@ -5445,6 +5710,11 @@ export const TableColumns: ToolCatalogEntry = {
             description:
               'Array of column names to delete at once (preferred for multi-column delete_column)',
           },
+          currencyCode: {
+            type: 'string',
+            description:
+              'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
+          },
           multiple: {
             type: 'boolean',
             description:
@@ -5454,7 +5724,17 @@ export const TableColumns: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type for update_column: string, number, boolean, date, json, select. Converting to select also requires options; conversion fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell.',
+              'New column type for update_column: string, number, currency, boolean, date, json, select, reference. Converting to currency optionally takes currencyCode; converting to reference requires referenceTableId; converting to select requires options and fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell.',
+            enum: [
+              'string',
+              'number',
+              'currency',
+              'boolean',
+              'date',
+              'json',
+              'select',
+              'reference',
+            ],
           },
           options: {
             type: 'array',
@@ -5466,6 +5746,11 @@ export const TableColumns: ToolCatalogEntry = {
             type: 'string',
             description:
               'Write this call\'s result to a NEW workspace file instead of returning it (e.g. "files/export.csv"). On success the tool result is REPLACED by a file receipt (fileId, vfsPath, size) — set it only when the file IS the goal. ".csv" serializes rows as a CSV table; ".json"/".txt"/".md"/".html" write pretty-printed JSON of the full result envelope. Missing parent folders are created; an existing path fails.',
+          },
+          referenceTableId: {
+            type: 'string',
+            description:
+              'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
           },
           tableId: { type: 'string', description: 'Table ID (required for every operation)' },
           unique: {
@@ -5633,7 +5918,7 @@ export const TableManage: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              'Table schema with a columns array (required for create). Each column: { name, type, unique? }; a select (enum) column also requires options (display names) and takes multiple?.',
+              'Table schema with a columns array (required for create). Each column: { name, type, unique? }; currency takes currencyCode?, reference requires referenceTableId, and select requires options (display names) and takes multiple?.',
           },
           tableId: {
             type: 'string',
@@ -6038,7 +6323,52 @@ export const UserTable: ToolCatalogEntry = {
           column: {
             type: 'object',
             description:
-              'Column definition for add_column: { name, type, unique?, position? }. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
+              'Column definition for add_column: { name, type, unique?, position? }. Currency optionally takes currencyCode; select takes { options: ["Open", "Closed"], multiple?: true }; reference requires referenceTableId.',
+            properties: {
+              currencyCode: {
+                type: 'string',
+                description:
+                  'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
+              },
+              multiple: {
+                type: 'boolean',
+                description:
+                  'Whether a select (enum) cell may hold several options (default false). Switching an existing column from true to false fails if any row has more than one option selected.',
+              },
+              name: { type: 'string' },
+              options: {
+                type: 'array',
+                description:
+                  'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
+                items: { type: 'string' },
+              },
+              position: { type: 'integer' },
+              referenceTableId: {
+                type: 'string',
+                description:
+                  'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
+              },
+              type: {
+                type: 'string',
+                description:
+                  'Column type for add_column: string, number, currency, boolean, date, json, select, or reference.',
+                enum: [
+                  'string',
+                  'number',
+                  'currency',
+                  'boolean',
+                  'date',
+                  'json',
+                  'select',
+                  'reference',
+                ],
+              },
+              unique: {
+                type: 'boolean',
+                description: 'Set column unique constraint (optional for update_column)',
+              },
+            },
+            required: ['name', 'type'],
           },
           columnName: {
             type: 'string',
@@ -6049,6 +6379,11 @@ export const UserTable: ToolCatalogEntry = {
             type: 'array',
             description:
               'Array of column names to delete at once (for delete_column). Preferred over columnName when deleting multiple columns.',
+          },
+          currencyCode: {
+            type: 'string',
+            description:
+              'Optional ISO 4217 currency code for a currency column, e.g. USD. Omit to use the table default.',
           },
           cursor: {
             type: 'string',
@@ -6181,7 +6516,17 @@ export const UserTable: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
+              'New column type (optional for update_column). Types: string, number, currency, boolean, date, json, select, reference. Converting to currency optionally takes currencyCode; converting to reference requires referenceTableId; converting to select requires options and fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
+            enum: [
+              'string',
+              'number',
+              'currency',
+              'boolean',
+              'date',
+              'json',
+              'select',
+              'reference',
+            ],
           },
           options: {
             type: 'array',
@@ -6246,6 +6591,11 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
           },
+          referenceTableId: {
+            type: 'string',
+            description:
+              'Target table ID for a reference column. Required when creating or converting to reference; use the id from tables/{name}/meta.json, not the table name or path.',
+          },
           rowId: {
             type: 'string',
             description:
@@ -6270,7 +6620,7 @@ export const UserTable: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
+              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. Types: string, number, currency, boolean, date, json, select, reference. Currency optionally takes currencyCode; select takes { options: ["Open", "Closed"], multiple?: true }; reference requires referenceTableId.',
           },
           scope: {
             type: 'string',
@@ -7041,6 +7391,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
   [LoadSkill.id]: LoadSkill,
+  [LoadSlideLayout.id]: LoadSlideLayout,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageKnowledgeBase.id]: ManageKnowledgeBase,

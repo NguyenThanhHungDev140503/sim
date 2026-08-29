@@ -1,3 +1,4 @@
+import { remapColumnReferencedTableIds } from '@/lib/table/column-types/registry.server'
 import type { TableSchema } from '@/lib/table/types'
 import {
   deriveForkBlockId,
@@ -59,4 +60,15 @@ export function remapForkTableWorkflowGroups(
         )
 
   return { ...schema, columns, workflowGroups: remappedGroups }
+}
+
+/** Rewrites copied reference columns to the copied target table identities. */
+export function remapForkTableReferences(
+  schema: TableSchema,
+  tableIdMap: ReadonlyMap<string, string>
+): TableSchema {
+  const columns = remapColumnReferencedTableIds(schema.columns, tableIdMap)
+  return columns.some((column, index) => column !== schema.columns[index])
+    ? { ...schema, columns }
+    : schema
 }
