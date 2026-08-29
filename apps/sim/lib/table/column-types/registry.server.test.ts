@@ -85,6 +85,53 @@ describe('assertColumnReferencesInWorkspace', () => {
     ).toBe(true)
   })
 
+  it('admits archived targets that are part of the same restore cohort', async () => {
+    const { trx, where } = transactionWithTargets(['tbl_accounts', 'tbl_companies'])
+
+    await assertColumnReferencesInWorkspace(
+      trx,
+      'ws_1',
+      [
+        {
+          id: 'col_account',
+          name: 'Account',
+          type: 'reference',
+          referenceTableId: 'tbl_accounts',
+        },
+        {
+          id: 'col_company',
+          name: 'Company',
+          type: 'reference',
+          referenceTableId: 'tbl_companies',
+        },
+      ],
+      { allowedArchivedTableIds: new Set(['tbl_companies']) }
+    )
+
+    const condition = where.mock.calls[0][0]
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'or' &&
+          Array.isArray(node.conditions) &&
+          node.conditions.some(
+            (nested) =>
+              typeof nested === 'object' &&
+              nested !== null &&
+              'type' in nested &&
+              nested.type === 'inArray' &&
+              'column' in nested &&
+              nested.column === schemaMock.userTableDefinitions.id &&
+              'values' in nested &&
+              Array.isArray(nested.values) &&
+              nested.values.length === 1 &&
+              nested.values[0] === 'tbl_companies'
+          )
+      )
+    ).toBe(true)
+  })
+
   it('conceals missing, archived, and cross-workspace targets as not found', async () => {
     const { trx } = transactionWithTargets(['tbl_accounts'])
 

@@ -9,7 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { computeOrgOverageAmount, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
@@ -17,12 +17,13 @@ import {
   COPILOT_USAGE_SOURCES,
   getStampedPeriodRangeUsageCostByUser,
 } from '@/lib/billing/core/usage-log'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
+import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import { getPlanWeeklyRefreshDollars, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES, getPlanPricing } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -434,14 +435,14 @@ export async function closeElapsedBillingPeriod(
       })
       totalOverage = computed
     } else {
-      const planDollars = getPlanTierDollars(sub.plan)
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
       let refreshConsumed = 0
-      if (planDollars > 0) {
-        refreshConsumed = await computeDailyRefreshConsumed({
+      if (weeklyRefreshDollars > 0) {
+        refreshConsumed = await computeWeeklyRefreshConsumed({
           billingEntity,
           periodStart: closeFrom,
           periodEnd: periodStart,
-          planDollars,
+          weeklyRefreshDollars,
         })
       }
       const { basePrice } = getPlanPricing(sub.plan)
@@ -490,12 +491,18 @@ export async function closeElapsedBillingPeriod(
     }> => {
       await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
-      // Canonical lock order: member userStats rows, then the organization row.
+      // Canonical lock order: member userStats rows (sorted, so any closers
+      // with overlapping row sets acquire locks in one global order — today
+      // `member_user_id_unique` keeps org rosters disjoint and other lockers
+      // are single-row, so this is deterministic-order hygiene that also
+      // holds if membership exclusivity is ever relaxed), then the
+      // organization row.
       if (memberIds.length > 0) {
         await tx
           .select({ userId: userStats.userId })
           .from(userStats)
           .where(inArray(userStats.userId, memberIds))
+          .orderBy(asc(userStats.userId))
           .for('update')
       }
       let orgCreditBalance = 0
@@ -639,13 +646,6 @@ export async function closeElapsedBillingPeriod(
           })
           .where(inArray(userStats.userId, memberIds))
       }
-      if (orgScoped) {
-        await tx
-          .update(organization)
-          .set({ departedMemberUsage: '0' })
-          .where(eq(organization.id, sub.referenceId))
-      }
-
       const advanced = await claimCloseMarker(tx, sub.id, periodStart)
       if (!advanced) {
         throw new Error(
@@ -788,12 +788,6 @@ export async function writeFinalPeriodBookkeeping(sub: {
         })
         .where(inArray(userStats.userId, memberIds))
     }
-    if (orgScoped) {
-      await tx
-        .update(organization)
-        .set({ departedMemberUsage: '0' })
-        .where(eq(organization.id, sub.referenceId))
-    }
   })
 }
 
@@ -805,48 +799,100 @@ export interface CycleCloseSweepSummary {
 }
 
 /**
+ * Candidates fetched per page of the sweep's keyset iteration. Bounds sweep
+ * memory to one page of subscription rows regardless of fleet size.
+ */
+const SWEEP_PAGE_SIZE = 250
+
+/**
+ * Concurrent closes per page. Closes of different subscriptions are
+ * independent transactions; the per-subscription guarded marker claim and the
+ * deterministic member-lock ordering make any interleaving safe, so this
+ * bound exists only to cap database pressure from one sweep.
+ */
+const SWEEP_CLOSE_CONCURRENCY = 10
+
+/**
+ * Entitled statuses inlined as SQL literals rather than bind parameters: the
+ * candidate scan targets the partial index on exactly this predicate, and the
+ * planner can only prove a query implies a partial index's predicate from
+ * literals — a parameterized generic plan would fall back to scanning the
+ * whole table.
+ */
+const ENTITLED_STATUS_LITERALS = sql.raw(
+  ENTITLED_SUBSCRIPTION_STATUSES.map((status) => `'${status}'`).join(', ')
+)
+
+/**
  * Daily catch-all that closes every elapsed billing period. Candidates are
  * entitled subscriptions whose close marker lags their current `periodStart`
- * — i.e. the period advanced (via Stripe sync) since the last close. Each
- * close is independently atomic, so one failure never blocks the rest.
+ * — i.e. the period advanced (via Stripe sync) since the last close.
+ *
+ * Iterates candidates in keyset pages (matching the partial index on exactly
+ * this predicate) and closes each page with bounded concurrency. Each close
+ * is independently atomic and error-isolated, so one failure never blocks
+ * the rest; a page that closes successfully leaves the candidate set, which
+ * also makes an interrupted sweep (deploy, crash) resume where it left off
+ * on the next run.
  */
 export async function sweepBillingCycleCloses(): Promise<CycleCloseSweepSummary> {
-  const candidates = await db
-    .select()
-    .from(subscriptionTable)
-    .where(
-      and(
-        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-        sql`${subscriptionTable.periodStart} IS NOT NULL`,
-        or(
-          isNull(subscriptionTable.lastClosedPeriodStart),
-          lt(subscriptionTable.lastClosedPeriodStart, subscriptionTable.periodStart)
-        )
-      )
-    )
-
   const summary: CycleCloseSweepSummary = {
-    candidates: candidates.length,
+    candidates: 0,
     closed: 0,
     initialized: 0,
     failed: 0,
   }
+  const startedAt = Date.now()
+  let cursor = ''
 
-  for (const sub of candidates) {
-    try {
-      const result = await closeElapsedBillingPeriod(sub)
-      if (result.status === 'closed') summary.closed++
-      if (result.status === 'initialized') summary.initialized++
-    } catch (error) {
-      summary.failed++
-      logger.error('Cycle close failed for subscription', {
-        subscriptionId: sub.id,
-        plan: sub.plan,
-        error: getErrorMessage(error),
-      })
+  while (true) {
+    const page = await db
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          sql`${subscriptionTable.status} in (${ENTITLED_STATUS_LITERALS})`,
+          sql`${subscriptionTable.periodStart} IS NOT NULL`,
+          or(
+            isNull(subscriptionTable.lastClosedPeriodStart),
+            lt(subscriptionTable.lastClosedPeriodStart, subscriptionTable.periodStart)
+          ),
+          gt(subscriptionTable.id, cursor)
+        )
+      )
+      .orderBy(asc(subscriptionTable.id))
+      .limit(SWEEP_PAGE_SIZE)
+
+    if (page.length === 0) break
+    summary.candidates += page.length
+    cursor = page[page.length - 1].id
+
+    // Total mapper: every close resolves to a status so one failure never
+    // rejects the page (mapWithConcurrency is all-or-nothing on rejection).
+    const results = await mapWithConcurrency(page, SWEEP_CLOSE_CONCURRENCY, async (sub) => {
+      try {
+        return (await closeElapsedBillingPeriod(sub)).status
+      } catch (error) {
+        logger.error('Cycle close failed for subscription', {
+          subscriptionId: sub.id,
+          plan: sub.plan,
+          error: getErrorMessage(error),
+        })
+        return 'failed' as const
+      }
+    })
+    for (const status of results) {
+      if (status === 'closed') summary.closed++
+      if (status === 'initialized') summary.initialized++
+      if (status === 'failed') summary.failed++
     }
+
+    if (page.length < SWEEP_PAGE_SIZE) break
   }
 
-  logger.info('Billing cycle-close sweep finished', { ...summary })
+  logger.info('Billing cycle-close sweep finished', {
+    ...summary,
+    durationMs: Date.now() - startedAt,
+  })
   return summary
 }

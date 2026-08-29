@@ -248,6 +248,22 @@ function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tabl
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
 }
 
+function invalidateReferencePreviews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  rowIds: ReadonlySet<string>
+) {
+  const previewsRoot = tableKeys.referencePreviews()
+  queryClient.invalidateQueries({
+    queryKey: previewsRoot,
+    predicate: (query) => {
+      const targetTableId = query.queryKey[previewsRoot.length]
+      const targetRowId = query.queryKey[previewsRoot.length + 1]
+      return targetTableId === tableId && typeof targetRowId === 'string' && rowIds.has(targetRowId)
+    },
+  })
+}
+
 /**
  * Invalidate only the row-count surfaces — the table detail and the tables
  * list, both of which carry the unfiltered `rowCount`. Deliberately leaves
@@ -1263,6 +1279,9 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
+    onSettled: (_data, _error, { rowId }) => {
+      invalidateReferencePreviews(queryClient, tableId, new Set([rowId]))
+    },
   })
 }
 
@@ -1351,6 +1370,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
           )
         },
       })
+      invalidateReferencePreviews(queryClient, tableId, rowIds)
     },
   })
 }
@@ -1373,8 +1393,9 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
+    onSettled: (_data, _error, rowId) => {
       invalidateRowCount(queryClient, tableId)
+      invalidateReferencePreviews(queryClient, tableId, new Set([rowId]))
     },
   })
 }
@@ -1422,8 +1443,9 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
+    onSettled: (_data, _error, rowIds) => {
       invalidateRowCount(queryClient, tableId)
+      invalidateReferencePreviews(queryClient, tableId, new Set(rowIds))
     },
   })
 }

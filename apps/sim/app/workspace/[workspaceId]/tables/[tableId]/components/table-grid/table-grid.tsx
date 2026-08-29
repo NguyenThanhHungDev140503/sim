@@ -7,6 +7,7 @@ import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { getErrorMessage } from '@sim/utils/errors'
+import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -63,14 +64,15 @@ import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
 import type { ColumnConfig } from '../column-config-sidebar'
+import { ColumnDropdown } from '../column-dropdown'
 import { ContextMenu } from '../context-menu'
-import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import { RemoteSelectionOverlay } from './remote-selection-overlay'
+import { exceedsTablePasteRowLimit, parseBoundedTsv } from './table-paste'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn, ReferencePreviewTarget } from './types'
 import {
@@ -1001,7 +1003,11 @@ export function TableGrid({
    *  so solo editing never pays the map build. */
   const columnIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) displayColumns.forEach((col, index) => map.set(col.key, index))
+    if (remoteSelections.length > 0) {
+      displayColumns.forEach((col, index) => {
+        map.set(col.key, index)
+      })
+    }
     return map
   }, [displayColumns, remoteSelections.length])
 
@@ -1010,7 +1016,11 @@ export function TableGrid({
    *  solo editing never pays the O(n) map build on a refetch. */
   const rowIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) rows.forEach((row, index) => map.set(row.id, index))
+    if (remoteSelections.length > 0) {
+      rows.forEach((row, index) => {
+        map.set(row.id, index)
+      })
+    }
     return map
   }, [rows, remoteSelections.length])
 
@@ -2411,7 +2421,9 @@ export function TableGrid({
       const draggedGid = colByName.get(dragged)?.workflowGroupId
 
       const orderIndex = new Map<string, number>()
-      currentOrder.forEach((n, i) => orderIndex.set(n, i))
+      currentOrder.forEach((n, i) => {
+        orderIndex.set(n, i)
+      })
 
       // Compute the contiguous run covering the dragged column. For a plain
       // column this is just [fromIndex, fromIndex]. For a group member it spans
@@ -3759,15 +3771,28 @@ export function TableGrid({
       const text = e.clipboardData?.getData('text/plain')
       if (!text) return
 
-      const pasteRows = text
-        .split(/\r?\n/)
-        .filter((line, idx, arr) => !(idx === arr.length - 1 && line === ''))
-        .map((line) => line.split('\t'))
-
-      if (pasteRows.length === 0) return
+      const admission = assessTextPaste({
+        pastedText: text,
+        maxPastedBytes: PASTE_LIMITS.STRUCTURED_BYTES,
+      })
+      if (!admission.accepted) {
+        toast.warning('Paste is too large for the table editor', {
+          description: `Paste up to ${formatPasteLimit(PASTE_LIMITS.STRUCTURED_BYTES)} at once, or use CSV import for larger datasets.`,
+        })
+        return
+      }
+      if (exceedsTablePasteRowLimit(text, TABLE_LIMITS.MAX_BATCH_INSERT_SIZE)) {
+        toast.warning('Paste has too many rows', {
+          description: `Paste up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE.toLocaleString()} rows at once, or use CSV import for larger datasets.`,
+        })
+        return
+      }
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
+      const parsedPaste = parseBoundedTsv(text, currentCols.length - currentAnchor.colIndex)
+      const pasteRows = parsedPaste.rows
+      if (pasteRows.length === 0) return
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -3858,10 +3883,12 @@ export function TableGrid({
         )
       }
 
-      const maxPasteCols = Math.max(...pasteRows.map((pr) => pr.length))
       setSelectionFocus({
         rowIndex: currentAnchor.rowIndex + pasteRows.length - 1,
-        colIndex: Math.min(currentAnchor.colIndex + maxPasteCols - 1, currentCols.length - 1),
+        colIndex: Math.min(
+          currentAnchor.colIndex + parsedPaste.maxColumns - 1,
+          currentCols.length - 1
+        ),
       })
     }
 
@@ -4765,7 +4792,11 @@ export function TableGrid({
   }
 
   return (
-    <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
+    <div
+      ref={containerRef}
+      data-paste-max-bytes={PASTE_LIMITS.STRUCTURED_BYTES}
+      className='flex h-full flex-col overflow-hidden'
+    >
       <div className='relative flex min-h-0 flex-1'>
         {findOpen && (
           <FindBar
@@ -5013,7 +5044,7 @@ export function TableGrid({
                         )
                       })}
                       {userPermissions.canEdit && (
-                        <NewColumnDropdown
+                        <ColumnDropdown
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}
@@ -5058,8 +5089,8 @@ export function TableGrid({
                             const row = rows[index]
                             if (!row) return null
                             const rowReference =
-                              activeExpandedReference?.sourceRowId === row.id
-                                ? activeExpandedReference
+                              displayedReferencePreview?.sourceRowId === row.id
+                                ? displayedReferencePreview
                                 : null
                             const displayedRowReference =
                               displayedReferencePreview?.sourceRowId === row.id

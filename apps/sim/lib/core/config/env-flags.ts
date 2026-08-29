@@ -55,20 +55,6 @@ const forceHosted = !isProd && isTruthy(getEnv('NEXT_PUBLIC_FORCE_HOSTED'))
 export const isHosted = forceHosted || appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
- * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
- * consumer has rolled out. Disabled is the Sim-first compatibility stage.
- */
-export const isCopilotBillingAttributionV1Enabled = isTruthy(
-  env.COPILOT_BILLING_ATTRIBUTION_V1_ENABLED
-)
-
-/**
- * Rejects markerless old-Go billing traffic after an operator explicitly
- * confirms the compatibility window has closed. Off by default.
- */
-export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
-
-/**
  * Are the Chat module's surfaces shown. On by default, so a deployment that
  * already has `COPILOT_API_KEY` keeps Chat without setting anything; the setup
  * wizard writes the opt-out when you skip the key.
@@ -289,6 +275,19 @@ export const isSsoEnabled = enterpriseFeatureEnabled(
 )
 
 /**
+ * Is organization usage monitoring enabled.
+ *
+ * Gates the settings section and the API that backs it, so nav and server always
+ * answer the same question — a section visible but rejected (or reachable but
+ * hidden) is exactly what this pairing exists to prevent.
+ */
+export const isUsageMonitoringEnabled = enterpriseFeatureEnabled(
+  'usageMonitoring',
+  env.USAGE_MONITORING_ENABLED,
+  'NEXT_PUBLIC_USAGE_MONITORING_ENABLED'
+)
+
+/**
  * Is access control (permission groups) enabled.
  * Required for permission-group enforcement to run at all off-hosted.
  */
@@ -359,6 +358,12 @@ export const isAuditLogsEnabled = enterpriseFeatureEnabled(
   'auditLogs',
   env.AUDIT_LOGS_ENABLED,
   'NEXT_PUBLIC_AUDIT_LOGS_ENABLED'
+)
+
+export const isCustomBlocksEnabled = enterpriseFeatureEnabled(
+  'customBlocks',
+  env.CUSTOM_BLOCKS_ENABLED,
+  'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'
 )
 
 /**

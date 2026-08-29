@@ -4,7 +4,7 @@ import { workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   removeWorkspaceEnvironmentContract,
@@ -15,6 +15,7 @@ import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
@@ -35,32 +36,26 @@ import {
 const logger = createLogger('WorkspaceEnvironmentAPI')
 
 /**
- * Bounds the workspace-environment advisory-lock wait so a stuck holder fails
- * fast (SQLSTATE 55P03) rather than hanging, even if the deployment lacks a
- * server-side `lock_timeout`. Transaction-scoped via `set_config(..., true)`.
- */
-const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
-
-/**
- * Restricts decrypted workspace env values to administrators. Members (including
- * read-only) receive the variable names with empty values so editor autocomplete
- * and conflict detection keep working without leaking secret values. A value is
- * revealed when the caller is a workspace admin (which includes organization
- * admins) or a per-secret credential admin of that key. Mirrors the per-key edit
- * gating in PUT/DELETE: if you can administer a secret, you can read it.
+ * Reveals a workspace secret only to a workspace administrator, that secret's
+ * credential administrator, or a caller allowed to use a secret explicitly
+ * marked visible. The environment snapshot has already limited
+ * `workspaceUnredactedKeys` to secrets the caller may use.
  */
 async function maskWorkspaceEnvForViewer({
   workspaceDecrypted,
   workspaceId,
   userId,
   permission,
+  workspaceUnredactedKeys,
 }: {
   workspaceDecrypted: Record<string, string>
   workspaceId: string
   userId: string
   permission: PermissionType
+  workspaceUnredactedKeys: readonly string[]
 }): Promise<Record<string, string>> {
   const workspaceKeys = Object.keys(workspaceDecrypted)
+  const unredactedKeys = new Set(workspaceUnredactedKeys)
   const { adminKeys } = await getWorkspaceEnvKeyAdminAccess({
     workspaceId,
     envKeys: workspaceKeys,
@@ -69,7 +64,7 @@ async function maskWorkspaceEnvForViewer({
 
   const masked: Record<string, string> = {}
   for (const key of workspaceKeys) {
-    const canViewValue = permission === 'admin' || adminKeys.has(key)
+    const canViewValue = permission === 'admin' || adminKeys.has(key) || unredactedKeys.has(key)
     masked[key] = canViewValue ? workspaceDecrypted[key] : ''
   }
   return masked
@@ -125,14 +120,20 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { workspaceDecrypted, personalDecrypted, personalOwners, conflicts } =
-        await getPersonalAndWorkspaceEnv(userId, workspaceId)
+      const {
+        workspaceDecrypted,
+        personalDecrypted,
+        personalOwners,
+        conflicts,
+        workspaceUnredactedKeys,
+      } = await getPersonalAndWorkspaceEnv(userId, workspaceId)
 
       const workspace = await maskWorkspaceEnvForViewer({
         workspaceDecrypted,
         workspaceId,
         userId,
         permission,
+        workspaceUnredactedKeys,
       })
       const personal = await maskPersonalEnvForViewer({
         personalDecrypted,
@@ -237,11 +238,8 @@ export const PUT = withRouteHandler(
         })
       ).then((entries) => Object.fromEntries(entries))
 
-      const { existingEncrypted, merged } = await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
-        )
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
+      const { merged } = await db.transaction(async (tx) => {
+        await lockWorkspaceEnvMap(tx, workspaceId)
 
         const [existingRow] = await tx
           .select()
@@ -269,12 +267,24 @@ export const PUT = withRouteHandler(
             set: { variables: mergedVars, updatedAt: new Date() },
           })
 
-        return { existingEncrypted: existing, merged: mergedVars }
+        /**
+         * Inside the transaction because a value committed without its
+         * credential row cannot be repaired by retrying: the key is in the map
+         * by then, so the next attempt reads it as pre-existing, computes an
+         * empty `newKeys`, and never creates the row.
+         */
+        const newKeys = Object.keys(variables).filter((k) => !(k in existing))
+        await createWorkspaceEnvCredentials({
+          workspaceId,
+          newKeys,
+          actingUserId: userId,
+          executor: tx,
+        })
+
+        return { merged: mergedVars }
       })
 
       invalidateEffectiveDecryptedEnvCache({ workspaceId })
-      const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
-      await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
 
       recordAudit({
         workspaceId,
@@ -370,10 +380,7 @@ export const DELETE = withRouteHandler(
       }
 
       const result = await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
-        )
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
+        await lockWorkspaceEnvMap(tx, workspaceId)
 
         const [existingRow] = await tx
           .select()
@@ -400,6 +407,12 @@ export const DELETE = withRouteHandler(
           .set({ variables: current, updatedAt: new Date() })
           .where(eq(workspaceEnvironment.workspaceId, workspaceId))
 
+        await deleteWorkspaceEnvCredentials({
+          workspaceId,
+          removedKeys: keys,
+          executor: tx,
+        })
+
         return { remainingKeysCount: Object.keys(current).length }
       })
 
@@ -408,7 +421,6 @@ export const DELETE = withRouteHandler(
       }
 
       invalidateEffectiveDecryptedEnvCache({ workspaceId })
-      await deleteWorkspaceEnvCredentials({ workspaceId, removedKeys: keys })
 
       recordAudit({
         workspaceId,

@@ -2143,6 +2143,41 @@
       "when": 1787702824793,
       "tag": "0306_knowledge_pipeline_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1787722270619,
+      "tag": "0307_add_subscription_cycle_close_lagging_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1787770314977,
+      "tag": "0308_workspace_file_size_cutover",
+      "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1787795555854,
+      "tag": "0309_material_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1787878957459,
+      "tag": "0310_drop_orphaned_table_import_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1787880668706,
+      "tag": "0311_usage_log_model_unbilled_category",
+      "breakpoints": true
     }
   ]
 }

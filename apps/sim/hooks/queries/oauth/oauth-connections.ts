@@ -11,6 +11,7 @@ import { client } from '@/lib/auth/auth-client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
+import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
@@ -151,6 +152,22 @@ export function useConnectOAuthService() {
 
   return useMutation({
     mutationFn: async ({ providerId, callbackURL, draftId }: ConnectServiceParams) => {
+      /**
+       * Desktop keeps the entire provider flow in the system browser so the
+       * authorization route's state cookies and callback use one cookie jar.
+       */
+      const desktopBridge = getDesktopBridge()
+      if (desktopBridge?.beginOAuthConnect) {
+        const opened = await desktopBridge.beginOAuthConnect(
+          providerId,
+          draftId ? { draftId } : undefined
+        )
+        if (!opened) {
+          throw new Error('Could not open your browser to connect this account.')
+        }
+        return { success: true }
+      }
+
       if (providerId === 'trello') {
         const returnUrl = encodeURIComponent(callbackURL)
         const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
@@ -172,32 +189,16 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
-      // Desktop app: OAuth cannot run in the embedded window (Google/Microsoft
-      // block embedded user agents, and better-auth binds the flow's state to
-      // the initiating browser's cookies), so the whole flow is handed to the
-      // system browser and returns via the app's loopback. Completion arrives
-      // through onOAuthConnectComplete (see useDesktopOAuthConnectListener),
-      // which refreshes caches and shows the connected toast.
-      const desktopBridge = getDesktopBridge()
-      if (desktopBridge?.beginOAuthConnect) {
-        const opened = await desktopBridge.beginOAuthConnect(
-          providerId,
-          draftId ? { draftId } : undefined
-        )
-        if (!opened) {
-          throw new Error('Could not open your browser to connect this account.')
-        }
-        return { success: true }
-      }
-
       const stateCallbackUrl = new URL(callbackURL)
       if (draftId) {
         stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
       }
 
+      const scopes = getPerRequestOAuthLinkScopes(providerId)
       await client.oauth2.link({
         providerId,
         callbackURL: stateCallbackUrl.toString(),
+        ...(scopes && { scopes }),
       })
 
       return { success: true }

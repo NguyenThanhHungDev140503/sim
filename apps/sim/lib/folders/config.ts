@@ -333,11 +333,13 @@ async function restoreTableChildren(context: CascadeChildrenContext): Promise<nu
   const { restoreTable } = await import('@/lib/table/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
   const restoringFolderIds = new Set(context.folderIds)
+  const restoringTableIds = new Set(ids)
 
   for (const id of ids) {
     // restoreFolder fires one folder-level live-list notify for the whole subtree.
     await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
       restoringFolderIds,
+      restoringTableIds,
       skipNotify: true,
     })
   }

@@ -12,7 +12,7 @@
  */
 
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types/registry'
@@ -424,10 +424,21 @@ export function remapColumnReferencedTableIds(
 export async function assertColumnReferencesInWorkspace(
   trx: DbTransaction,
   workspaceId: string,
-  columns: readonly ColumnDefinition[]
+  columns: readonly ColumnDefinition[],
+  options?: { allowedArchivedTableIds?: ReadonlySet<string> }
 ): Promise<void> {
   const referencedTableIds = collectColumnReferencedTableIds(columns)
   if (referencedTableIds.length === 0) return
+  const allowedArchivedTableIds = referencedTableIds.filter((id) =>
+    options?.allowedArchivedTableIds?.has(id)
+  )
+  const availableTarget =
+    allowedArchivedTableIds.length > 0
+      ? or(
+          isNull(userTableDefinitions.archivedAt),
+          inArray(userTableDefinitions.id, allowedArchivedTableIds)
+        )
+      : isNull(userTableDefinitions.archivedAt)
 
   const targets = await trx
     .select({ id: userTableDefinitions.id })
@@ -436,7 +447,7 @@ export async function assertColumnReferencesInWorkspace(
       and(
         eq(userTableDefinitions.workspaceId, workspaceId),
         inArray(userTableDefinitions.id, referencedTableIds),
-        isNull(userTableDefinitions.archivedAt)
+        availableTarget
       )
     )
     .for('key share')

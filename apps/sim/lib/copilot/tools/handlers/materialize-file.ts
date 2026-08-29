@@ -1,7 +1,12 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { folder as folderTable, workflow, workspaceFiles } from '@sim/db/schema'
+import {
+  folder as folderTable,
+  type WorkspaceFileRow,
+  workflow,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   getErrorMessage,
@@ -36,7 +41,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
-import { toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
@@ -50,7 +55,7 @@ const logger = createLogger('SaveUpload')
 const MAX_MATERIALIZE_NAME_RETRIES = 8
 const WORKSPACE_FILE_NAME_UNIQUE_INDEX = 'workspace_files_workspace_folder_name_active_unique'
 
-function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
+function toFileRecord(row: WorkspaceFileRow) {
   const pathPrefix = getServePathPrefix()
   return {
     id: row.id,
@@ -58,7 +63,7 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
     name: row.displayName ?? row.originalName,
     key: row.key,
     path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
-    size: row.size,
+    size: getWorkspaceFileSize(row),
     type: row.contentType,
     uploadedBy: row.userId,
     deletedAt: row.deletedAt,
@@ -111,12 +116,7 @@ async function executeSave(
   if (!head && hasCloudStorage()) {
     return { success: false, error: `Upload object not found: "${fileName}".` }
   }
-  /**
-   * The true byte count can exceed the legacy int4 `size` column, so read the exact
-   * `sizeBytes` first and clamp back down for the legacy projection.
-   */
-  const verifiedSize = head?.size ?? row.sizeBytes ?? row.size
-  const legacySize = toLegacyWorkspaceFileSize(verifiedSize)
+  const verifiedSize = head?.size ?? getWorkspaceFileSize(row)
   const billingContext = await resolveStorageBillingContext(workspaceId)
   const quotaCheck = await checkStorageQuotaForBillingContext(billingContext, verifiedSize)
   if (!quotaCheck.allowed) {
@@ -140,7 +140,8 @@ async function executeSave(
 
     try {
       transition = await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR UPDATE`)
+        /** `FOR NO KEY UPDATE`: see the module header of `lib/billing/storage/tracking.ts`. */
+        await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR NO KEY UPDATE`)
 
         const [updated] = await tx
           .update(workspaceFiles)
@@ -152,7 +153,6 @@ async function executeSave(
             messageId: null,
             originalName: materializedName,
             displayName: materializedName,
-            size: legacySize,
             sizeBytes: verifiedSize,
           })
           .where(

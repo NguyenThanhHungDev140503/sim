@@ -1,17 +1,23 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  drizzleOrmMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockComputeOrgOverageAmount,
   mockIsSubscriptionOrgScoped,
   mockGetStampedPeriodRangeUsageCostByUser,
-  mockComputeDailyRefreshConsumed,
+  mockComputeWeeklyRefreshConsumed,
   mockEnqueueOutboxEvent,
   mockGetPlanPricing,
-  mockGetPlanTierDollars,
+  mockGetPlanWeeklyRefreshDollars,
   mockResolveSubscriptionUsagePeriod,
   mockIsEnterprise,
   mockIsFree,
@@ -21,10 +27,10 @@ const {
   mockComputeOrgOverageAmount: vi.fn(),
   mockIsSubscriptionOrgScoped: vi.fn(),
   mockGetStampedPeriodRangeUsageCostByUser: vi.fn(),
-  mockComputeDailyRefreshConsumed: vi.fn(),
+  mockComputeWeeklyRefreshConsumed: vi.fn(),
   mockEnqueueOutboxEvent: vi.fn(),
   mockGetPlanPricing: vi.fn(),
-  mockGetPlanTierDollars: vi.fn(),
+  mockGetPlanWeeklyRefreshDollars: vi.fn(),
   mockResolveSubscriptionUsagePeriod: vi.fn(),
   mockIsEnterprise: vi.fn(),
   mockIsFree: vi.fn(),
@@ -52,12 +58,12 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getStampedPeriodRangeUsageCostByUser: mockGetStampedPeriodRangeUsageCostByUser,
 }))
 
-vi.mock('@/lib/billing/credits/daily-refresh', () => ({
-  computeDailyRefreshConsumed: mockComputeDailyRefreshConsumed,
+vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
+  computeWeeklyRefreshConsumed: mockComputeWeeklyRefreshConsumed,
 }))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
-  getPlanTierDollars: mockGetPlanTierDollars,
+  getPlanWeeklyRefreshDollars: mockGetPlanWeeklyRefreshDollars,
   isEnterprise: mockIsEnterprise,
   isFree: mockIsFree,
 }))
@@ -161,14 +167,14 @@ describe('closeElapsedBillingPeriod', () => {
     mockIsEnterprise.mockReturnValue(false)
     mockIsFree.mockReturnValue(false)
     mockResolveSubscriptionUsagePeriod.mockReturnValue(null)
-    mockGetPlanTierDollars.mockReturnValue(40)
+    mockGetPlanWeeklyRefreshDollars.mockReturnValue(10)
     mockGetPlanPricing.mockReturnValue({ basePrice: 40 })
-    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
     mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 150]]))
     mockComputeOrgOverageAmount.mockResolvedValue({
       effectiveUsage: 150,
       baseSubscriptionAmount: 80,
-      dailyRefreshDeduction: 0,
+      weeklyRefreshDeduction: 0,
       totalOverage: 70,
     })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
@@ -222,6 +228,10 @@ describe('closeElapsedBillingPeriod', () => {
       invoiceIdemKeyStem: `cycle-close-overage:sub-1:${PERIOD_START.toISOString()}:invoice`,
       metadata: expect.objectContaining({ type: 'overage_billing', organizationId: 'org-1' }),
     })
+
+    // Member row locks are acquired in sorted order so parallel closes of
+    // organizations sharing a member cannot deadlock.
+    expect(drizzleOrmMock.asc).toHaveBeenCalledWith(schemaMock.userStats.userId)
 
     // Bookkeeping: last-period CASE write + billedOverage reset on member rows.
     const bookkeepingSet = dbChainMockFns.set.mock.calls.find(
@@ -503,14 +513,14 @@ describe('closeElapsedPeriodBeforeDeletion', () => {
     mockIsEnterprise.mockReturnValue(false)
     mockIsFree.mockReturnValue(false)
     mockResolveSubscriptionUsagePeriod.mockReturnValue(null)
-    mockGetPlanTierDollars.mockReturnValue(40)
+    mockGetPlanWeeklyRefreshDollars.mockReturnValue(10)
     mockGetPlanPricing.mockReturnValue({ basePrice: 40 })
-    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
     mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 150]]))
     mockComputeOrgOverageAmount.mockResolvedValue({
       effectiveUsage: 150,
       baseSubscriptionAmount: 80,
-      dailyRefreshDeduction: 0,
+      weeklyRefreshDeduction: 0,
       totalOverage: 70,
     })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
@@ -661,5 +671,40 @@ describe('sweepBillingCycleCloses', () => {
     expect(summary.candidates).toBe(2)
     expect(summary.initialized).toBe(2)
     expect(summary.failed).toBe(0)
+  })
+
+  it('iterates candidates in keyset pages, fetching until a short page', async () => {
+    queueTableRows(
+      schemaMock.subscription,
+      Array.from({ length: 250 }, (_, i) =>
+        subRow({ id: `sub-p1-${String(i).padStart(3, '0')}`, lastClosedPeriodStart: null })
+      )
+    )
+    queueTableRows(schemaMock.subscription, [
+      subRow({ id: 'sub-p2-0', lastClosedPeriodStart: null }),
+      subRow({ id: 'sub-p2-1', lastClosedPeriodStart: null }),
+      subRow({ id: 'sub-p2-2', lastClosedPeriodStart: null }),
+    ])
+
+    const summary = await sweepBillingCycleCloses()
+
+    expect(summary).toEqual({ candidates: 253, closed: 0, initialized: 253, failed: 0 })
+    // A full page signals another fetch; the short second page ends the loop.
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+  })
+
+  it('isolates a failing close inside a page', async () => {
+    // 'sub-bad' has a lagging marker past the grace, so its close proceeds
+    // into the org-scope lookup and blows up; 'sub-ok' initializes. The page
+    // completes and the failure is counted, never rethrown.
+    queueTableRows(schemaMock.subscription, [
+      subRow({ id: 'sub-bad' }),
+      subRow({ id: 'sub-ok', lastClosedPeriodStart: null }),
+    ])
+    mockIsSubscriptionOrgScoped.mockRejectedValueOnce(new Error('boom'))
+
+    const summary = await sweepBillingCycleCloses()
+
+    expect(summary).toEqual({ candidates: 2, closed: 0, initialized: 1, failed: 1 })
   })
 })

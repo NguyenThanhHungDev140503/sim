@@ -386,11 +386,11 @@ function deriveCopiedTableRowId(childTableId: string, sourceRowId: string): stri
 /** Rewrites reference cells through the same deterministic identity used by copied target rows. */
 function remapCopiedReferenceCells(
   data: unknown,
-  referenceColumnTargetTableIds: Readonly<Record<string, string>> | undefined
+  referenceColumnTargetTableEntries: ReadonlyArray<readonly [string, string]> | undefined
 ): unknown {
-  if (!referenceColumnTargetTableIds || !isRecordLike(data)) return data
+  if (!referenceColumnTargetTableEntries || !isRecordLike(data)) return data
   let remapped: Record<string, unknown> | undefined
-  for (const [columnId, childTableId] of Object.entries(referenceColumnTargetTableIds)) {
+  for (const [columnId, childTableId] of referenceColumnTargetTableEntries) {
     const sourceRowId = data[columnId]
     if (typeof sourceRowId !== 'string' || sourceRowId.length === 0) continue
     remapped ??= { ...data }
@@ -423,7 +423,6 @@ async function loadTableDefinitionsWithDependencies(
 
   while (pendingIds.length > 0) {
     const batchIds = pendingIds
-    const batchIdSet = new Set(batchIds)
     pendingIds = []
     const rows = await tx
       .select()
@@ -435,9 +434,8 @@ async function loadTableDefinitionsWithDependencies(
           isNull(userTableDefinitions.archivedAt)
         )
       )
-    const batchRows = rows.filter((row) => batchIdSet.has(row.id))
 
-    for (const row of batchRows) {
+    for (const row of rows) {
       definitionsById.set(row.id, row)
       const referencedIds = collectColumnReferencedTableIds((row.schema as TableSchema).columns)
       for (const referencedId of referencedIds) {
@@ -1334,6 +1332,9 @@ export async function copyForkResourceContent(params: {
     try {
       let copied = 0
       let afterId: string | null = null
+      const referenceColumnTargetTableEntries = table.referenceColumnTargetTableIds
+        ? Object.entries(table.referenceColumnTargetTableIds)
+        : undefined
       // `order_key` is nullable, and spreading `...row` would inherit NULLs into a
       // brand-new tableId that the one-shot backfill script-migration never revisits
       // (it snapshots the pending set up front) — leaving rows the keyset pager has to
@@ -1394,7 +1395,7 @@ export async function copyForkResourceContent(params: {
               // Repoint resource-chip URLs in cell data at the child copies (no-op when no maps).
               data: remapCopiedReferenceCells(
                 contentRefMaps ? remapTableRowResourceUrls(row.data, contentRefMaps) : row.data,
-                table.referenceColumnTargetTableIds
+                referenceColumnTargetTableEntries
               ),
             },
             provenance: classification.mode === 'tracked' ? classification : undefined,

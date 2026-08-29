@@ -73,11 +73,14 @@ import {
   tableRowsParamsKey,
   useBatchUpdateTableRows,
   useDeleteColumn,
+  useDeleteTableRow,
+  useDeleteTableRows,
   useReferenceRowPreview,
   useReferenceTableMetadata,
   useRestoreTable,
   useTableRow,
   useUpdateColumn,
+  useUpdateTableRow,
   useUpdateTableView,
 } from '@/hooks/queries/tables'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -283,7 +286,7 @@ describe('useReferenceTableMetadata', () => {
 })
 
 describe('useBatchUpdateTableRows', () => {
-  it('invalidates cached row details after a batch write settles', () => {
+  it('invalidates cached row details and matching reference previews after a batch write settles', () => {
     const hook = useBatchUpdateTableRows({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     const updates = [
       { rowId: 'row-1', data: { name: 'Acme' } },
@@ -292,13 +295,78 @@ describe('useBatchUpdateTableRows', () => {
 
     hook.onSettled?.(undefined, null, { updates }, undefined)
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledOnce()
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     const options = queryClient.invalidateQueries.mock.calls[0]?.[0]
     expect(options?.queryKey).toEqual(tableKeys.rowsRoot(TABLE_ID))
     expect(options?.predicate({ queryKey: tableKeys.row(TABLE_ID, 'row-1') })).toBe(true)
     expect(options?.predicate({ queryKey: tableKeys.row(TABLE_ID, 'row-2') })).toBe(true)
     expect(options?.predicate({ queryKey: tableKeys.row(TABLE_ID, 'row-3') })).toBe(false)
     expect(options?.predicate({ queryKey: tableKeys.infiniteRowsRoot(TABLE_ID) })).toBe(false)
+
+    const previewOptions = queryClient.invalidateQueries.mock.calls[1]?.[0]
+    expect(previewOptions?.queryKey).toEqual(tableKeys.referencePreviews())
+    expect(
+      previewOptions?.predicate({
+        queryKey: tableKeys.referencePreview(TABLE_ID, 'row-1', 'source-row', 'account'),
+      })
+    ).toBe(true)
+    expect(
+      previewOptions?.predicate({
+        queryKey: tableKeys.referencePreview(TABLE_ID, 'row-3', 'source-row', 'account'),
+      })
+    ).toBe(false)
+    expect(
+      previewOptions?.predicate({
+        queryKey: tableKeys.referencePreview('other-table', 'row-1', 'source-row', 'account'),
+      })
+    ).toBe(false)
+  })
+})
+
+describe('reference preview invalidation', () => {
+  function expectPreviewInvalidation(rowIds: string[]) {
+    const call = queryClient.invalidateQueries.mock.calls.find(
+      ([options]) =>
+        JSON.stringify(options?.queryKey) === JSON.stringify(tableKeys.referencePreviews())
+    )
+    expect(call).toBeDefined()
+    const options = call?.[0]
+    for (const rowId of rowIds) {
+      expect(
+        options?.predicate({
+          queryKey: tableKeys.referencePreview(TABLE_ID, rowId, 'source-row', 'account'),
+        })
+      ).toBe(true)
+    }
+    expect(
+      options?.predicate({
+        queryKey: tableKeys.referencePreview(TABLE_ID, 'untouched-row', 'source-row', 'account'),
+      })
+    ).toBe(false)
+  }
+
+  it('invalidates a referenced row after an update settles', () => {
+    const hook = useUpdateTableRow({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    hook.onSettled?.(undefined, null, { rowId: 'row-1', data: { name: 'Acme' } }, undefined)
+
+    expectPreviewInvalidation(['row-1'])
+  })
+
+  it('invalidates a referenced row after a delete settles', () => {
+    const hook = useDeleteTableRow({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    hook.onSettled?.(undefined, null, 'row-1', undefined)
+
+    expectPreviewInvalidation(['row-1'])
+  })
+
+  it('invalidates every referenced row after a bulk delete settles', () => {
+    const hook = useDeleteTableRows({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    hook.onSettled?.(undefined, null, ['row-1', 'row-2'], undefined)
+
+    expectPreviewInvalidation(['row-1', 'row-2'])
   })
 })
 

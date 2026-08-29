@@ -269,9 +269,8 @@ export function OutputSelect({
       multiSelectValues={normalizedSelectedValues}
       onMultiSelectChange={onOutputSelect}
       placeholder={selectedDisplayText}
-      overlayContent={
-        <span className='truncate text-[var(--text-primary)]'>{selectedDisplayText}</span>
-      }
+      overlayLabel={selectedDisplayText}
+      overlayContent={selectedDisplayText}
       disabled={disabled || workflowOutputs.length === 0}
       align={align}
       maxHeight={maxHeight}

@@ -8,6 +8,7 @@ import {
   chipVariants,
   cn,
   Label,
+  OverflowText,
   Switch,
   Tooltip,
   toast,
@@ -19,7 +20,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
-import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
+import { CREDIT_MULTIPLIER, formatCreditCost } from '@/lib/billing/credits/conversion'
 import {
   getCoveredUsage,
   getIsOnDemandActive,
@@ -30,6 +31,7 @@ import {
   getDisplayPlanName,
   getPlanTierCredits,
   getPlanTierDollars,
+  getPlanWeeklyRefreshDollars,
   isEnterprise,
   isFree,
   isPaid,
@@ -438,6 +440,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     ? organizationBilling?.cancelAtPeriodEnd === true
     : subscriptionData?.data?.cancelAtPeriodEnd === true
 
+  const weeklyRefreshDollars =
+    getPlanWeeklyRefreshDollars(subscription.plan) *
+    (isOrganizationScope ? subscription.seats || 1 : 1)
+
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
     id: invoice.id,
     date: formatDate(new Date(invoice.created * 1000)),
@@ -475,8 +481,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             </div>
           </div>
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[var(--text-body)] text-sm'>{planTitle}</span>
-            <span className='truncate text-[var(--text-muted)] text-caption'>{priceText}</span>
+            <OverflowText label={planTitle} className='text-[var(--text-body)] text-sm' />
+            <OverflowText label={priceText} className='text-[var(--text-muted)] text-caption' />
           </div>
         </div>
         {!subscription.isEnterprise &&
@@ -575,6 +581,15 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                 </span>
                 <span className='text-[var(--text-muted)] text-small'>
                   {new Date(periodEnd).toLocaleDateString()}
+                </span>
+              </div>
+            )}
+
+            {subscription.isPaid && weeklyRefreshDollars > 0 && (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>Weekly refresh</span>
+                <span className='text-[var(--text-muted)] text-small'>
+                  +{formatCreditCost(weeklyRefreshDollars)}
                 </span>
               </div>
             )}

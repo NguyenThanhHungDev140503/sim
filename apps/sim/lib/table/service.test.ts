@@ -15,6 +15,7 @@ import type { TableSchema } from '@/lib/table/types'
 const mocks = vi.hoisted(() => ({
   assertColumnReferencesInWorkspace: vi.fn(),
   findActiveTableReferenceBlockers: vi.fn(),
+  getWorkspaceWithOwner: vi.fn(),
   tableReferenceBlockerMessage: vi.fn(
     (target: string, blockers: string[]) =>
       `Cannot delete table "${target}" because it is referenced by table "${blockers[0]}". Remove the reference column first.`
@@ -36,7 +37,17 @@ vi.mock('@/lib/table/billing', () => ({
   notifyTableRowUsage: vi.fn(),
 }))
 
-import { createTable, deleteTable, getTableById, TableReferencedError } from '@/lib/table/service'
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceWithOwner: mocks.getWorkspaceWithOwner,
+}))
+
+import {
+  createTable,
+  deleteTable,
+  getTableById,
+  restoreTable,
+  TableReferencedError,
+} from '@/lib/table/service'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 
@@ -336,6 +347,61 @@ describe('getTableById job derivation', () => {
     expect(select).toHaveBeenCalledTimes(1)
     expect(limit).toHaveBeenCalledWith(1)
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+})
+
+describe('restoreTable reference validation', () => {
+  const referenceSchema = {
+    columns: [
+      {
+        id: 'col_account',
+        name: 'account',
+        type: 'reference',
+        referenceTableId: 'tbl_accounts',
+      },
+    ],
+  } as TableSchema
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.assertColumnReferencesInWorkspace.mockResolvedValue(undefined)
+    mocks.getWorkspaceWithOwner.mockResolvedValue({ id: WORKSPACE_ID, archivedAt: null })
+  })
+
+  it('validates targets under the row lock and admits the restore cohort', async () => {
+    const archived = definitionRow({
+      archivedAt: new Date('2026-01-03T00:00:00Z'),
+      schema: referenceSchema,
+    })
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    queueTableRows(schemaMock.userTableDefinitions, [])
+    const restoringTableIds = new Set(['tbl_accounts'])
+
+    await restoreTable(TABLE_ID, 'request-1', { restoringTableIds })
+
+    expect(mocks.assertColumnReferencesInWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      WORKSPACE_ID,
+      referenceSchema.columns,
+      { allowedArchivedTableIds: new Set(['tbl_accounts', TABLE_ID]) }
+    )
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.userTableDefinitions)
+  })
+
+  it('leaves the table archived when a reference target is unavailable', async () => {
+    const archived = definitionRow({
+      archivedAt: new Date('2026-01-03T00:00:00Z'),
+      schema: referenceSchema,
+    })
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    mocks.assertColumnReferencesInWorkspace.mockRejectedValueOnce({ code: 'not_found' })
+
+    await expect(restoreTable(TABLE_ID, 'request-1')).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })
 

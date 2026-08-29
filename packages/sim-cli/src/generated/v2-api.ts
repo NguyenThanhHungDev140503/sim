@@ -345,12 +345,19 @@ type ApplyWorkflowOperationsBodyRef0 =
       params: {
         type: string
         name: string
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
       }
     }
   | {
       operation_type: 'edit'
       block_id: string
-      params: Record<string, unknown>
+      params: {
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
+      } & Record<string, unknown>
     }
   | {
       operation_type: 'delete'
@@ -363,6 +370,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         subflowId: string
         type: string
         name: string
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
       }
     }
   | {
@@ -372,6 +382,49 @@ type ApplyWorkflowOperationsBodyRef0 =
         subflowId: string
       }
     }
+
+type ApplyWorkflowOperationsBodyRef1 = Array<ApplyWorkflowOperationsBodyRef2>
+
+type ApplyWorkflowOperationsBodyRef2 =
+  | ApplyWorkflowOperationsBodyRef3
+  | ApplyWorkflowOperationsBodyRef4
+  | ApplyWorkflowOperationsBodyRef5
+
+type ApplyWorkflowOperationsBodyRef3 = {
+  type: string
+  operation?: string
+  usageControl?: 'auto' | 'force' | 'none'
+  params?: Record<string, unknown>
+}
+
+type ApplyWorkflowOperationsBodyRef4 =
+  | {
+      type: 'custom-tool'
+      customToolId: string
+      usageControl?: 'auto' | 'force' | 'none'
+    }
+  | {
+      type: 'custom-tool'
+      schema: {
+        type?: 'function'
+        function: {
+          name: string
+          description?: string
+          parameters: Record<string, unknown>
+        }
+      }
+      code: string
+      usageControl?: 'auto' | 'force' | 'none'
+    }
+
+type ApplyWorkflowOperationsBodyRef5 = {
+  type: 'mcp'
+  params: {
+    serverId: string
+    toolName: string
+  } & Record<string, unknown>
+  usageControl?: 'auto' | 'force' | 'none'
+}
 
 export type ApplyWorkflowOperationsBody = {
   operations: Array<ApplyWorkflowOperationsBodyRef0>
@@ -752,6 +805,8 @@ type CancelTableDispatchResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
+    filtered?: boolean
+    excludeRowIds?: Array<string>
   }
   limit: {
     type: 'rows'
@@ -823,6 +878,12 @@ type CancelTableImportResponseRef1 = {
 type CancelTableImportResponseRef2 = string
 
 type CancelTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CancelTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -840,6 +901,9 @@ type CancelTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CancelTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -847,7 +911,7 @@ type CancelTableImportResponseRef3 = {
 }
 
 export type CancelTableImportResponse = {
-  data: CancelTableImportResponseRef3
+  data: CancelTableImportResponseRef4
 }
 
 /** `POST /api/v2/tables/[tableId]/cancel-runs` */
@@ -1119,6 +1183,12 @@ type CompleteTableImportResponseRef1 = {
 type CompleteTableImportResponseRef2 = string
 
 type CompleteTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CompleteTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -1136,6 +1206,9 @@ type CompleteTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CompleteTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -1143,7 +1216,7 @@ type CompleteTableImportResponseRef3 = {
 }
 
 export type CompleteTableImportResponse = {
-  data: CompleteTableImportResponseRef3
+  data: CompleteTableImportResponseRef4
 }
 
 /** `POST /api/v2/credentials/connections` */
@@ -1526,7 +1599,7 @@ export type CreateKnowledgeDocumentUploadBody = {
   tag6?: string
   tag7?: string
   processingOptions?: {
-    recipe?: string
+    recipe?: 'default' | 'plain' | 'markdown' | 'code'
     lang?: string
   }
 }
@@ -2050,6 +2123,12 @@ type CreateTableImportResponseRef0 = {
 type CreateTableImportResponseRef1 = string
 
 type CreateTableImportResponseRef2 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CreateTableImportResponseRef3 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -2067,35 +2146,38 @@ type CreateTableImportResponseRef2 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef3 = {
+type CreateTableImportResponseRef4 = {
   method: 'put'
   url: string
   headers: Record<string, string>
   expiresAt: string
 }
 
-type CreateTableImportResponseRef4 = {
+type CreateTableImportResponseRef5 = {
   method: 'multipart'
   partSize: number
   partCount: number
 }
 
-type CreateTableImportResponseRef5 = {
+type CreateTableImportResponseRef6 = {
   type: 'workspace_file'
   fileId: string
 }
 
-type CreateTableImportResponseRef6 = {
+type CreateTableImportResponseRef7 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
-  source: CreateTableImportResponseRef5
+  source: CreateTableImportResponseRef6
   target:
     | {
         type: 'new'
@@ -2109,26 +2191,29 @@ type CreateTableImportResponseRef6 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef7 =
+type CreateTableImportResponseRef8 =
   | {
-      session: CreateTableImportResponseRef2
+      session: CreateTableImportResponseRef3
       uploadToken: string
-      transfer: CreateTableImportResponseRef3 | CreateTableImportResponseRef4
+      transfer: CreateTableImportResponseRef4 | CreateTableImportResponseRef5
     }
   | {
-      session: CreateTableImportResponseRef6
+      session: CreateTableImportResponseRef7
       uploadToken: null
       transfer: null
     }
 
 export type CreateTableImportResponse = {
-  data: CreateTableImportResponseRef7
+  data: CreateTableImportResponseRef8
 }
 
 /** `POST /api/v2/tables/imports/[importId]/parts` */
@@ -3326,7 +3411,7 @@ export type GetAuditLogParams = {
 }
 
 export type GetAuditLogQuery = {
-  organizationId: string
+  organizationId?: string
 }
 
 type GetAuditLogResponseRef0 = {
@@ -4236,6 +4321,8 @@ type GetTableDispatchResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
+    filtered?: boolean
+    excludeRowIds?: Array<string>
   }
   limit: {
     type: 'rows'
@@ -4307,6 +4394,12 @@ type GetTableImportResponseRef1 = {
 type GetTableImportResponseRef2 = string
 
 type GetTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type GetTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -4324,6 +4417,9 @@ type GetTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<GetTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -4331,7 +4427,7 @@ type GetTableImportResponseRef3 = {
 }
 
 export type GetTableImportResponse = {
-  data: GetTableImportResponseRef3
+  data: GetTableImportResponseRef4
 }
 
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -4896,7 +4992,7 @@ export type ListAuditLogsQuery = {
   includeDeparted?: boolean
   limit?: number
   cursor?: string
-  organizationId: string
+  organizationId?: string
   actorEmail?: string
 }
 
@@ -4964,6 +5060,7 @@ type ListBillingLogsResponseRef0 = {
 export type ListBillingLogsResponse = {
   data: Array<ListBillingLogsResponseRef0>
   nextCursor: string | null
+  scope: 'user' | 'workspace'
 }
 
 /** `GET /api/v2/blocks` */
@@ -5827,6 +5924,8 @@ type ListTableDispatchesResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
+    filtered?: boolean
+    excludeRowIds?: Array<string>
   }
   limit: {
     type: 'rows'
@@ -6121,6 +6220,7 @@ type ListWorkflowMcpServersResponseRef0 = {
 export type ListWorkflowMcpServersResponse = {
   data: Array<ListWorkflowMcpServersResponseRef0>
   nextCursor: string | null
+  toolNamesTruncated: boolean
 }
 
 /** `GET /api/v2/workflow-mcp-servers/[serverId]/tools` */
@@ -6145,6 +6245,7 @@ type ListWorkflowMcpToolsResponseRef0 = {
 export type ListWorkflowMcpToolsResponse = {
   data: Array<ListWorkflowMcpToolsResponseRef0>
   nextCursor: string | null
+  truncated: boolean
 }
 
 /** `GET /api/v2/workflows/[workflowId]/runs` */
@@ -7549,7 +7650,7 @@ export type SetSecretQuery = Record<string, unknown>
 export type SetSecretBody = {
   workspaceId: string
   scope: 'workspace' | 'personal'
-  value: string
+  value?: string
   description?: string | null
   unredacted?: boolean
 }
@@ -8830,14 +8931,18 @@ export type UpsertTableRowResponse = {
 /**
  * Every v2 operation, keyed by name.
  *
- * `query` and `body` describe each field well enough for the CLI to build a
- * flag for it and coerce the string argv gives back: its kind, whether it is
- * required, its enum values, and its server-side default. A slot the contract
- * does not declare — or one whose shape is a union with no flat field list —
- * is absent, and the runtime falls back to taking it as JSON.
+ * `query`, `body`, and `headers` describe each field well enough for the CLI
+ * to build a flag for it and coerce the string argv gives back: its kind,
+ * whether it is required, its enum values, and its server-side default. A slot
+ * the contract does not declare — or one whose shape is a union with no flat
+ * field list — is absent, and the runtime falls back to taking it as JSON.
+ * Headers the CLI sets itself, such as the API key, are never listed.
  *
  * `summary` is the operation's one-line description, lifted from the OpenAPI
  * specs so `--help` reuses prose that is already written and already checked.
+ *
+ * `personalKeyOnly` marks an operation whose spec description says a workspace
+ * API key is rejected, so `--help` can say so before the request is sent.
  */
 export const V2_OPERATIONS = {
   abortFileUpload: {
@@ -8852,6 +8957,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the upload session.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -8872,6 +8984,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the knowledge base.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   activateWorkflowVersion: {
     method: 'POST',
@@ -8883,6 +9002,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Activate Workflow Version',
+    personalKeyOnly: true,
   },
   addTableColumn: {
     method: 'POST',
@@ -8929,6 +9049,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Index Workspace Files',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -8950,6 +9071,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Apply Workflow Operations',
+    personalKeyOnly: true,
     query: {
       dryRun: {
         kind: 'boolean',
@@ -9055,6 +9177,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Bulk Save Tag Definitions',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9078,6 +9201,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Bulk Update Chunks',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9093,7 +9217,8 @@ export const V2_OPERATIONS = {
       chunkIds: {
         kind: 'array',
         required: true,
-        describe: 'Chunks to operate on, by identifier. Ids outside the document are ignored.',
+        describe:
+          'Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request.',
       },
     },
   },
@@ -9104,6 +9229,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Bulk Enable or Disable Documents',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9195,6 +9321,12 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
+      },
+    },
   },
   cancelTableRuns: {
     method: 'POST',
@@ -9263,6 +9395,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the upload session.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   completeKnowledgeDocumentUpload: {
     method: 'POST',
@@ -9281,6 +9420,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the knowledge base.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   completeTableImport: {
     method: 'POST',
@@ -9296,6 +9442,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createCredentialConnection: {
     method: 'POST',
@@ -9303,6 +9456,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Credential Connection',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9438,6 +9592,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createKnowledgeBase: {
     method: 'POST',
@@ -9473,6 +9634,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Create Chunk',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9498,6 +9660,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Knowledge Connector',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9583,6 +9746,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createKnowledgeFolder: {
     method: 'POST',
@@ -9606,6 +9776,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Tag',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9723,6 +9894,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Service-Account Credential',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9762,6 +9934,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Skill',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9901,6 +10074,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createTableRows: {
     method: 'POST',
@@ -9973,6 +10153,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Workflow MCP Server',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -10001,9 +10182,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10095,6 +10277,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Chunk',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10113,6 +10296,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Knowledge Connector',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10184,6 +10368,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Tag',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10199,6 +10384,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Delete Tag Definitions',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10231,9 +10417,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/secrets/[name]',
     pathParams: ['name'] as const,
-    pathParamDocs: { name: 'Secret to create, replace, or delete.' },
+    pathParamDocs: { name: 'Secret to delete.' },
     responseMode: 'json',
     summary: 'Delete Secret',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10260,6 +10447,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Skill',
+    personalKeyOnly: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
@@ -10373,6 +10561,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow Chat Deployment',
+    personalKeyOnly: true,
   },
   deleteWorkflowFolder: {
     method: 'DELETE',
@@ -10424,6 +10613,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow MCP Server',
+    personalKeyOnly: true,
   },
   deployWorkflow: {
     method: 'POST',
@@ -10432,6 +10622,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Deploy Workflow',
+    personalKeyOnly: true,
     body: {
       name: { kind: 'string', describe: 'Optional label for the deployment version.' },
       description: {
@@ -10447,6 +10638,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Publish Workflow As MCP Tool',
+    personalKeyOnly: true,
     body: {
       workflowId: {
         kind: 'string',
@@ -10547,7 +10739,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response. Rejected when `async` is true.',
+          'Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
@@ -10571,6 +10763,18 @@ export const V2_OPERATIONS = {
           'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.',
       },
     },
+    headers: {
+      'x-run-id': {
+        kind: 'string',
+        describe:
+          'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.',
+      },
+      'x-sim-via': {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
+      },
+    },
   },
   exportWorkflow: {
     method: 'GET',
@@ -10587,11 +10791,12 @@ export const V2_OPERATIONS = {
     pathParamDocs: { auditLogId: 'Audit-log entry identifier.' },
     responseMode: 'json',
     summary: 'Get Audit Log',
+    personalKeyOnly: true,
     query: {
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit-log entry should be returned.',
+        describe:
+          "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
     },
   },
@@ -10657,7 +10862,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.',
+          'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.',
       },
     },
   },
@@ -10684,6 +10889,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the upload session.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -10713,6 +10925,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Chunk',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10731,6 +10944,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Knowledge Connector',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10844,6 +11058,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Get Next Tag Slot',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10949,6 +11164,12 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
+      },
+    },
   },
   getTableRow: {
     method: 'GET',
@@ -11010,6 +11231,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow Chat Deployment',
+    personalKeyOnly: true,
   },
   getWorkflowDeployment: {
     method: 'GET',
@@ -11026,6 +11248,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow MCP Server',
+    personalKeyOnly: true,
   },
   getWorkflowRun: {
     method: 'GET',
@@ -11046,7 +11269,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'string',
         describe:
-          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.',
+          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a selector that is not headed by a block id answers `400` instead of an empty `blockOutputs`.',
       },
       includeFileBase64: {
         kind: 'boolean',
@@ -11096,6 +11319,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Grant Skill Editor',
+    personalKeyOnly: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       email: {
@@ -11137,6 +11361,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Audit Logs',
+    personalKeyOnly: true,
     query: {
       action: { kind: 'string', describe: 'Filter by exact action name.' },
       resourceType: {
@@ -11173,8 +11398,8 @@ export const V2_OPERATIONS = {
       },
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit trail should be queried.',
+        describe:
+          "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
       actorEmail: { kind: 'string', describe: 'Filter by actor email address.' },
     },
@@ -11203,7 +11428,8 @@ export const V2_OPERATIONS = {
       },
       workspaceId: {
         kind: 'string',
-        describe: 'Restrict results to one workspace whose payer the caller can inspect.',
+        describe:
+          "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
       },
       period: {
         kind: 'enum',
@@ -11476,7 +11702,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',
@@ -11500,7 +11727,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.',
+          'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.',
       },
     },
   },
@@ -11545,7 +11772,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
       },
       search: {
         kind: 'string',
@@ -11641,6 +11868,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'List Chunks',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -11692,6 +11920,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'List Knowledge Connector Documents',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -11722,6 +11951,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Knowledge Connectors',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -11829,7 +12059,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',
@@ -11872,6 +12103,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Tag Usage',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -11979,7 +12211,7 @@ export const V2_OPERATIONS = {
       includeJobRuns: {
         kind: 'boolean',
         describe:
-          'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union. Accepted only under `sortBy=startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.',
+          'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.',
       },
       runId: { kind: 'string', describe: 'Exact run identifier to match.' },
       sortBy: {
@@ -11987,7 +12219,7 @@ export const V2_OPERATIONS = {
         values: ['startedAt', 'durationMs', 'cost', 'status'] as const,
         default: 'startedAt',
         describe:
-          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected together with `includeJobRuns=true`.',
+          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.',
       },
       sortOrder: {
         kind: 'enum',
@@ -12051,6 +12283,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'List MCP Server Tools',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12070,6 +12303,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Secrets',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12212,7 +12446,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',
@@ -12277,7 +12512,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/{tableId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',
@@ -12391,7 +12626,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',
@@ -12429,6 +12665,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Workflow MCP Servers',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12468,6 +12705,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'List Workflow MCP Tools',
+    personalKeyOnly: true,
   },
   listWorkflowRuns: {
     method: 'GET',
@@ -12530,7 +12768,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',
@@ -12848,6 +13086,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Create or Replace Workflow Chat Deployment',
+    personalKeyOnly: true,
     body: {
       identifier: {
         kind: 'string',
@@ -12903,6 +13142,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Replace Workflow State',
+    personalKeyOnly: true,
     query: {
       dryRun: {
         kind: 'boolean',
@@ -12958,7 +13198,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe:
-          'Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.',
+          'Path of the archived folder to restore, as reported by an archived-scope folder list.',
       },
     },
   },
@@ -13003,7 +13243,7 @@ export const V2_OPERATIONS = {
       path: {
         kind: 'string',
         required: true,
-        describe: 'Path the folder held when `DELETE /api/v2/tables/folders` archived it.',
+        describe: 'Path the folder held when a folder delete archived it.',
       },
     },
   },
@@ -13044,6 +13284,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Revert Workflow To Version',
+    personalKeyOnly: true,
   },
   revokeSkillEditor: {
     method: 'DELETE',
@@ -13055,6 +13296,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Revoke Skill Editor',
+    personalKeyOnly: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       email: {
@@ -13071,6 +13313,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Rollback Workflow',
+    personalKeyOnly: true,
     body: {
       version: {
         kind: 'integer',
@@ -13173,9 +13416,10 @@ export const V2_OPERATIONS = {
     method: 'PUT',
     path: '/api/v2/secrets/[name]',
     pathParams: ['name'] as const,
-    pathParamDocs: { name: 'Secret to create, replace, or delete.' },
+    pathParamDocs: { name: 'Secret to create or replace.' },
     responseMode: 'json',
     summary: 'Set Secret',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13192,8 +13436,8 @@ export const V2_OPERATIONS = {
       },
       value: {
         kind: 'string',
-        required: true,
-        describe: 'Write-only secret value. It is never returned.',
+        describe:
+          'Write-only secret value. It is never returned. Omit it on a workspace secret to change description or unredacted alone, leaving the stored value untouched; the secret must already exist. Always required for a personal secret, which carries no other writable field.',
       },
       description: {
         kind: 'string',
@@ -13217,6 +13461,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Sync Knowledge Connector',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13255,6 +13500,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Undeploy Workflow',
+    personalKeyOnly: true,
   },
   undeployWorkflowMcpTool: {
     method: 'DELETE',
@@ -13266,6 +13512,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Unpublish Workflow MCP Tool',
+    personalKeyOnly: true,
   },
   unzipFile: {
     method: 'POST',
@@ -13282,9 +13529,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to update.' },
     responseMode: 'json',
     summary: 'Update Credential',
+    personalKeyOnly: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -13387,6 +13635,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Chunk',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13414,6 +13663,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Knowledge Connector',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13446,6 +13696,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Knowledge Connector Documents',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13475,6 +13726,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Document',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13520,6 +13772,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Tag',
+    personalKeyOnly: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13634,6 +13887,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Skill',
+    personalKeyOnly: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       name: { kind: 'string', describe: 'New kebab-case skill name.' },
@@ -13773,6 +14027,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow MCP Server',
+    personalKeyOnly: true,
     body: {
       name: { kind: 'string', describe: 'Server display name, shown to connecting MCP clients.' },
       description: { kind: 'string', describe: 'New server description, or null to clear it.' },
@@ -13789,6 +14044,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow Public API Access',
+    personalKeyOnly: true,
     body: {
       isPublicApi: {
         kind: 'boolean',
@@ -13838,6 +14094,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Enable or Disable File Share',
+    personalKeyOnly: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       isActive: {
@@ -13877,7 +14134,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.',
+          'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.',
       },
       conflictTarget: { kind: 'string', describe: 'Unique column used to detect a conflict.' },
     },
