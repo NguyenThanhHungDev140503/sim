@@ -46,6 +46,8 @@ import {
   useDeleteColumn,
   useDeleteWorkflowGroup,
   useFindTableRows,
+  useReferenceRowPreview,
+  useReferenceTableMetadata,
   useTableRunState,
   useUpdateColumn,
   useUpdateTableMetadata,
@@ -79,6 +81,7 @@ import {
   checkboxColLayout,
   chipRowCount,
   classifyExecStatusMix,
+  collectReferenceTableIds,
   collectRowSnapshots,
   columnNameIssue,
   computeNormalizedSelection,
@@ -89,9 +92,11 @@ import {
   isCellInSelection,
   isSameReferencePreviewTarget,
   moveCell,
+  type ReferenceTableLoadStatus,
   ROW_SELECTION_ALL,
   ROW_SELECTION_NONE,
   type RowSelection,
+  resolveDisplayedReferencePreviewTarget,
   rowSelectionCoversAll,
   rowSelectionIncludes,
   rowSelectionIsEmpty,
@@ -595,6 +600,36 @@ export function TableGrid({
     // (and one the server rejects outright).
     filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
+  const referenceTableIds = useMemo(() => collectReferenceTableIds(columns), [columns])
+  const referenceTableQueries = useReferenceTableMetadata(workspaceId, referenceTableIds)
+  const directReferenceTables = useMemo(
+    () => referenceTableQueries.flatMap(({ data }) => (data ? [data] : [])),
+    [referenceTableQueries]
+  )
+  const nestedReferenceTableIds = useMemo(() => {
+    const directIds = new Set(referenceTableIds)
+    return collectReferenceTableIds(
+      directReferenceTables.flatMap((table) => table.schema.columns)
+    ).filter((id) => !directIds.has(id))
+  }, [directReferenceTables, referenceTableIds])
+  const nestedReferenceTableQueries = useReferenceTableMetadata(
+    workspaceId,
+    nestedReferenceTableIds
+  )
+  const { referenceTables, referenceTableNames } = useMemo(() => {
+    const tables = new Map<string, (typeof directReferenceTables)[number]>()
+    const names = new Map<string, string>()
+    for (const table of directReferenceTables) {
+      tables.set(table.id, table)
+      names.set(table.id, table.name)
+    }
+    for (const { data: table } of nestedReferenceTableQueries) {
+      if (!table) continue
+      tables.set(table.id, table)
+      names.set(table.id, table.name)
+    }
+    return { referenceTables: tables, referenceTableNames: names }
+  }, [directReferenceTables, nestedReferenceTableQueries])
 
   /** Sort is single-column, so only the first spec entry can be active. */
   const activeSort = queryOptions.sort?.[0]
@@ -884,8 +919,8 @@ export function TableGrid({
       const hidden = new Set(hiddenColumns)
       ordered = ordered.filter((col) => !hidden.has(getColumnId(col)))
     }
-    return expandToDisplayColumns(ordered, tableWorkflowGroups)
-  }, [columns, columnOrder, hiddenColumns, tableWorkflowGroups])
+    return expandToDisplayColumns(ordered, tableWorkflowGroups, referenceTableNames)
+  }, [columns, columnOrder, hiddenColumns, tableWorkflowGroups, referenceTableNames])
 
   const activeExpandedReference = useMemo(() => {
     if (!expandedReference) return null
@@ -901,7 +936,51 @@ export function TableGrid({
       ? expandedReference
       : null
   }, [displayColumns, rows, expandedReference])
-  const expandedSourceRowId = activeExpandedReference?.sourceRowId ?? null
+  const referencePreviewTable = activeExpandedReference
+    ? referenceTables.get(activeExpandedReference.referenceTableId)
+    : undefined
+  const referencePreviewTableQuery = activeExpandedReference
+    ? referenceTableQueries[referenceTableIds.indexOf(activeExpandedReference.referenceTableId)]
+    : undefined
+  const referencePreviewTableStatus: ReferenceTableLoadStatus = referencePreviewTable
+    ? 'ready'
+    : referencePreviewTableQuery?.isError
+      ? 'error'
+      : referencePreviewTableQuery?.isSuccess
+        ? 'ready'
+        : 'loading'
+  const referencePreviewQuery = useReferenceRowPreview(
+    workspaceId,
+    activeExpandedReference?.referenceTableId,
+    activeExpandedReference?.referenceRowId,
+    activeExpandedReference?.sourceRowId,
+    activeExpandedReference?.sourceColumnKey
+  )
+  const loadedReferencePreviewTarget: ReferencePreviewTarget | null = referencePreviewQuery.data
+    ? {
+        sourceRowId: referencePreviewQuery.data.sourceRowId,
+        sourceColumnKey: referencePreviewQuery.data.sourceColumnKey,
+        referenceTableId: referencePreviewQuery.data.tableId,
+        referenceRowId: referencePreviewQuery.data.rowId,
+      }
+    : null
+  const displayedReferencePreview = resolveDisplayedReferencePreviewTarget({
+    activeTarget: activeExpandedReference,
+    loadedTarget: loadedReferencePreviewTarget,
+    isFetching: referencePreviewQuery.isFetching,
+    isError: referencePreviewQuery.isError,
+  })
+  const expandedSourceRowId = displayedReferencePreview?.sourceRowId ?? null
+  const displayedReferenceTable = referencePreviewQuery.isError
+    ? referencePreviewTable
+    : referencePreviewQuery.data?.table
+  const displayedReferenceRow = referencePreviewQuery.isError
+    ? undefined
+    : referencePreviewQuery.data?.row
+  const displayedReferenceTableStatus: Exclude<ReferenceTableLoadStatus, 'loading'> =
+    referencePreviewQuery.isError && referencePreviewTableStatus === 'error' ? 'error' : 'ready'
+  const displayedReferenceRowError =
+    referencePreviewQuery.isError && referencePreviewTableStatus !== 'error'
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -4982,6 +5061,10 @@ export function TableGrid({
                               activeExpandedReference?.sourceRowId === row.id
                                 ? activeExpandedReference
                                 : null
+                            const displayedRowReference =
+                              displayedReferencePreview?.sourceRowId === row.id
+                                ? displayedReferencePreview
+                                : null
                             return (
                               <Fragment key={row.id}>
                                 <DataRow
@@ -5026,13 +5109,16 @@ export function TableGrid({
                                   expandedReference={rowReference}
                                   onReferenceClick={handleReferenceClick}
                                 />
-                                {rowReference ? (
+                                {displayedRowReference ? (
                                   <ReferenceRowPreview
-                                    key={`${rowReference.referenceTableId}:${rowReference.referenceRowId}`}
                                     workspaceId={workspaceId}
-                                    referenceTableId={rowReference.referenceTableId}
-                                    referenceRowId={rowReference.referenceRowId}
+                                    referenceTableId={displayedRowReference.referenceTableId}
+                                    table={displayedReferenceTable}
+                                    tableStatus={displayedReferenceTableStatus}
+                                    referenceTableNames={referenceTableNames}
                                     colSpan={displayColumns.length + 1}
+                                    row={displayedReferenceRow}
+                                    rowError={displayedReferenceRowError}
                                   />
                                 ) : null}
                               </Fragment>

@@ -12,6 +12,7 @@ import {
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
@@ -146,6 +147,9 @@ export const TABLE_FIND_STALE_TIME = 30 * 1000
 export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
+export const TABLE_REFERENCE_PREVIEW_STALE_TIME = Number.POSITIVE_INFINITY
+export const TABLE_REFERENCE_PREVIEW_GC_TIME = 0
+export const TABLE_REFERENCE_METADATA_STALE_TIME = Number.POSITIVE_INFINITY
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
@@ -341,12 +345,60 @@ export function useTableRow(
   tableId: string | undefined,
   rowId: string | undefined
 ) {
+  // rq-lint-allow: tableId and rowId are globally unique; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.row(tableId ?? '', rowId ?? ''),
     queryFn: ({ signal }) =>
       fetchTableRow(workspaceId as string, tableId as string, rowId as string, signal),
     enabled: Boolean(workspaceId && tableId && rowId),
     staleTime: TABLE_ROWS_STALE_TIME,
+  })
+}
+
+/**
+ * Fetches an isolated table-and-row snapshot for one reference preview opening.
+ *
+ * Referenced table metadata normally comes from detail queries loaded with the grid, so ensuring it
+ * here reuses the cache while making the schema and row one atomic result. Previous complete data
+ * remains visible when the query key changes, allowing the grid to switch previews only after the
+ * next target settles. The preview key remains outside ordinary row roots so active-table mutations
+ * cannot replace the open snapshot.
+ */
+export function useReferenceRowPreview(
+  workspaceId: string | undefined,
+  tableId: string | undefined,
+  rowId: string | undefined,
+  sourceRowId?: string,
+  sourceColumnKey?: string
+) {
+  const queryClient = useQueryClient()
+  // rq-lint-allow: tableId is globally unique; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
+  return useQuery({
+    queryKey: tableKeys.referencePreview(tableId ?? '', rowId ?? '', sourceRowId, sourceColumnKey),
+    queryFn: async ({ signal }) => {
+      const [table, row] = await Promise.all([
+        queryClient.ensureQueryData({
+          ...getTableDetailQueryOptions(workspaceId as string, tableId as string),
+          staleTime: TABLE_REFERENCE_METADATA_STALE_TIME,
+        }),
+        fetchTableRow(workspaceId as string, tableId as string, rowId as string, signal),
+      ])
+      return {
+        tableId: tableId as string,
+        rowId: rowId as string,
+        sourceRowId: sourceRowId as string,
+        sourceColumnKey: sourceColumnKey as string,
+        table,
+        row,
+      }
+    },
+    enabled: Boolean(workspaceId && tableId && rowId && sourceRowId && sourceColumnKey),
+    placeholderData: keepPreviousData,
+    staleTime: TABLE_REFERENCE_PREVIEW_STALE_TIME,
+    gcTime: TABLE_REFERENCE_PREVIEW_GC_TIME,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 
@@ -360,6 +412,27 @@ export function getTableDetailQueryOptions(workspaceId: string, tableId: string)
     queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
     staleTime: TABLE_DETAIL_STALE_TIME,
   }
+}
+
+/**
+ * Prefetches each referenced table's name and schema when its source grid loads.
+ * The detail keys are shared with {@link useTable}, so cached definitions are reused and
+ * schema invalidations still refresh active observers.
+ */
+export function useReferenceTableMetadata(
+  workspaceId: string | undefined,
+  tableIds: ReadonlyArray<string>
+) {
+  const uniqueTableIds = Array.from(new Set(tableIds)).sort()
+  // rq-lint-allow: table IDs are globally unique; workspaceId is only an authz scope on each detail fetch
+  return useQueries({
+    queries: uniqueTableIds.map((tableId) => ({
+      ...getTableDetailQueryOptions(workspaceId ?? '', tableId),
+      enabled: Boolean(workspaceId),
+      staleTime: TABLE_REFERENCE_METADATA_STALE_TIME,
+      refetchOnWindowFocus: false,
+    })),
+  })
 }
 
 export interface TableRunState {

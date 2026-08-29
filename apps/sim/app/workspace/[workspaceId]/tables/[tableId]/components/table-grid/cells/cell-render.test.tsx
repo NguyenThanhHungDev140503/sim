@@ -8,9 +8,28 @@ import type { DisplayColumn } from '@/app/workspace/[workspaceId]/tables/[tableI
 
 vi.mock('@sim/emcn', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+  Button: ({
+    children,
+    size,
+    variant,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    size?: string
+    variant?: string
+  }) => (
+    <button data-size={size} data-variant={variant} {...props}>
+      {children}
+    </button>
+  ),
   Checkbox: () => null,
-  Chip: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
+  ChipTag: ({
+    children,
+    variant,
+    ...props
+  }: React.HTMLAttributes<HTMLSpanElement> & { variant?: string }) => (
+    <span data-chip-tag-variant={variant} {...props}>
+      {children}
+    </span>
   ),
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
   Tooltip: {
@@ -45,6 +64,7 @@ const REFERENCE_COLUMN: DisplayColumn = {
   name: 'Account',
   type: 'reference',
   referenceTableId: 'table-accounts',
+  referenceTableName: 'Accounts',
   groupSize: 1,
   groupStartColIndex: 0,
   headerLabel: 'Account',
@@ -69,7 +89,7 @@ afterEach(() => {
 })
 
 describe('reference cell rendering', () => {
-  it('resolves a stored row ID to a chip labeled with the reference column name', () => {
+  it('resolves a stored row ID to a chip labeled with the referenced table name', () => {
     expect(
       resolveCellRender({
         value: 'row-account-1',
@@ -77,7 +97,7 @@ describe('reference cell rendering', () => {
         column: REFERENCE_COLUMN,
         waitingOnLabels: undefined,
       })
-    ).toMatchObject({ kind: 'column-chip', label: 'Account' })
+    ).toEqual({ kind: 'column-chip', label: 'Accounts' })
   })
 
   it('keeps an empty reference cell empty', () => {
@@ -89,6 +109,17 @@ describe('reference cell rendering', () => {
         waitingOnLabels: undefined,
       })
     ).toEqual({ kind: 'empty' })
+  })
+
+  it('uses a neutral label while the referenced table name is unavailable', () => {
+    expect(
+      resolveCellRender({
+        value: 'row-account-1',
+        exec: undefined,
+        column: { ...REFERENCE_COLUMN, referenceTableName: undefined },
+        waitingOnLabels: undefined,
+      })
+    ).toEqual({ kind: 'column-chip', label: 'Referenced table' })
   })
 
   it('opens the referenced row from the chip without exposing its stored row ID', () => {
@@ -110,11 +141,44 @@ describe('reference cell rendering', () => {
     })
 
     const chip = container.querySelector('button')
-    expect(chip?.textContent).toBe('Account')
+    expect(chip?.textContent).toBe('Accounts')
+    expect(chip?.dataset.variant).toBe('ghost')
+    expect(chip?.dataset.size).toBe('sm')
+    expect(chip?.className).toContain('max-w-full')
+    expect(chip?.className).toContain('p-0')
+    expect(chip?.querySelector('svg')).toBeNull()
+    const tag = chip?.querySelector('[data-chip-tag-variant="field"]')
+    expect(tag?.textContent).toBe('Accounts')
+    expect(tag?.className).toContain('min-w-0')
+    expect(tag?.className).toContain('max-w-full')
 
     act(() => chip?.click())
 
     expect(onReferenceClick).toHaveBeenCalledOnce()
     expect(container.textContent).not.toContain('row-account-1')
+  })
+
+  it('keeps a chip double-click from reaching the reference cell', () => {
+    const onCellDoubleClick = vi.fn()
+
+    act(() => {
+      root.render(
+        <div onDoubleClick={onCellDoubleClick}>
+          <CellRender
+            kind={{ kind: 'column-chip', label: 'Accounts' }}
+            isEditing={false}
+            referenceAction={{ expanded: false, onClick: vi.fn() }}
+          />
+        </div>
+      )
+    })
+
+    act(() => {
+      container
+        .querySelector('button')
+        ?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+
+    expect(onCellDoubleClick).not.toHaveBeenCalled()
   })
 })

@@ -2,14 +2,18 @@
 
 import { memo, type ReactNode, useLayoutEffect, useMemo, useRef } from 'react'
 import { buttonVariants } from '@sim/emcn'
-import { ArrowRight, Loader } from '@sim/emcn/icons'
+import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
 import Link from 'next/link'
+import type { TableDefinition } from '@/lib/table'
 import { columnTypeById } from '@/lib/table/column-types'
 import { CellContent } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells'
 import { ColumnTypeIcon } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/column-type-icon'
-import { expandToDisplayColumns } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/utils'
-import { useTable, useTableRow } from '@/hooks/queries/tables'
+import {
+  expandToDisplayColumns,
+  type ReferenceTableLoadStatus,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/utils'
+import type { useReferenceRowPreview } from '@/hooks/queries/tables'
 
 /**
  * Must match the sticky anchor's `h-[144px]` class below because the row
@@ -23,26 +27,30 @@ const ReferenceIcon = columnTypeById('reference').icon
 interface ReferenceRowPreviewProps {
   workspaceId: string
   referenceTableId: string
-  referenceRowId: string
+  table: TableDefinition | undefined
+  tableStatus: Exclude<ReferenceTableLoadStatus, 'loading'>
+  referenceTableNames: ReadonlyMap<string, string>
   colSpan: number
+  row: NonNullable<ReturnType<typeof useReferenceRowPreview>['data']>['row'] | undefined
+  rowError: boolean
 }
 
 export const ReferenceRowPreview = memo(function ReferenceRowPreview({
   workspaceId,
   referenceTableId,
-  referenceRowId,
+  table,
+  tableStatus,
+  referenceTableNames,
   colSpan,
+  row,
+  rowError,
 }: ReferenceRowPreviewProps) {
   const previewCellRef = useRef<HTMLTableCellElement>(null)
   const previewShellRef = useRef<HTMLDivElement>(null)
   const previewViewportRef = useRef<HTMLDivElement>(null)
-  const tableQuery = useTable(workspaceId, referenceTableId)
-  const rowQuery = useTableRow(workspaceId, referenceTableId, referenceRowId)
-  const table = tableQuery.data
-  const row = rowQuery.data
   const columns = useMemo(
-    () => expandToDisplayColumns(table?.schema.columns ?? [], []),
-    [table?.schema.columns]
+    () => expandToDisplayColumns(table?.schema.columns ?? [], [], referenceTableNames),
+    [table?.schema.columns, referenceTableNames]
   )
 
   useLayoutEffect(() => {
@@ -102,20 +110,25 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
   }, [])
 
   let content: ReactNode
-  if (tableQuery.isLoading || rowQuery.isLoading) {
+  if (tableStatus === 'error') {
     content = (
-      <div className='flex h-full items-center justify-center gap-2 text-[var(--text-muted)] text-small'>
-        <Loader animate className='size-[14px]' />
-        Loading referenced row
+      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+        Couldn&apos;t load referenced table
       </div>
     )
-  } else if (tableQuery.isError || rowQuery.isError) {
+  } else if (!table) {
+    content = (
+      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+        Referenced table unavailable
+      </div>
+    )
+  } else if (columns.length === 0 && rowError) {
     content = (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
         Couldn&apos;t load referenced row
       </div>
     )
-  } else if (!row) {
+  } else if (columns.length === 0 && !row) {
     content = (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
         No matching row
@@ -149,25 +162,43 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
           />
         </div>
         <div role='row' className='flex min-w-max'>
-          {columns.map((column) => (
+          {rowError ? (
             <div
               role='cell'
-              key={column.key}
-              className='flex w-40 min-w-40 max-w-60 items-center border-[var(--border)] border-r px-2 text-[var(--text-primary)]'
+              className='flex min-w-full flex-1 items-center justify-center text-[var(--text-muted)]'
             >
-              <div className='w-full min-w-0 max-w-56 overflow-clip text-ellipsis whitespace-nowrap'>
-                <CellContent
-                  value={row.data[column.key]}
-                  column={column}
-                  workspaceId={workspaceId}
-                  isEditing={false}
-                  onSave={noop}
-                  onCancel={noop}
-                />
-              </div>
+              Couldn&apos;t load referenced row
             </div>
-          ))}
-          <div aria-hidden className='min-w-0 flex-1 bg-[var(--bg)]' />
+          ) : !row ? (
+            <div
+              role='cell'
+              className='flex min-w-full flex-1 items-center justify-center text-[var(--text-muted)]'
+            >
+              No matching row
+            </div>
+          ) : (
+            <>
+              {columns.map((column) => (
+                <div
+                  role='cell'
+                  key={column.key}
+                  className='flex w-40 min-w-40 max-w-60 items-center border-[var(--border)] border-r px-2 text-[var(--text-primary)]'
+                >
+                  <div className='w-full min-w-0 max-w-56 overflow-clip text-ellipsis whitespace-nowrap'>
+                    <CellContent
+                      value={row.data[column.key]}
+                      column={column}
+                      workspaceId={workspaceId}
+                      isEditing={false}
+                      onSave={noop}
+                      onCancel={noop}
+                    />
+                  </div>
+                </div>
+              ))}
+              <div aria-hidden className='min-w-0 flex-1 bg-[var(--bg)]' />
+            </>
+          )}
         </div>
       </div>
     )
@@ -186,16 +217,25 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview({
             className='flex h-full w-[var(--reference-preview-width,100cqw)] min-w-0 flex-col bg-[var(--surface-2)]'
           >
             <div className='flex h-9 shrink-0 items-center gap-1.5 px-3 text-[var(--text-primary)] text-small'>
-              <ReferenceIcon className='size-[14px] text-[var(--text-icon)]' />
-              <span className='font-medium'>{table?.name ?? 'Referenced table'}</span>
-              <Link
-                href={`/workspace/${workspaceId}/tables/${referenceTableId}`}
-                aria-label='Go to table'
-                title='Go to table'
-                className={buttonVariants({ variant: 'quiet', size: 'icon' })}
-              >
-                <ArrowRight className='size-[14px]' />
-              </Link>
+              {table ? (
+                <>
+                  <ReferenceIcon className='size-[14px] text-[var(--text-icon)]' />
+                  <span>{table.name}</span>
+                  <Link
+                    href={`/workspace/${workspaceId}/tables/${referenceTableId}`}
+                    aria-label='Go to table'
+                    title='Go to table'
+                    className={buttonVariants({ variant: 'quiet', size: 'icon' })}
+                  >
+                    <SquareArrowUpRight className='size-[14px]' />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <ReferenceIcon className='size-[14px] text-[var(--text-icon)]' />
+                  <span>Table unavailable</span>
+                </>
+              )}
             </div>
 
             <div

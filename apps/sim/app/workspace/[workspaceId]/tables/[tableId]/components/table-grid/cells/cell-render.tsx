@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Checkbox, Chip, cn, Tooltip } from '@sim/emcn'
+import { Badge, Button, Checkbox, ChipTag, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
@@ -28,7 +28,7 @@ export type CellRenderKind =
   // Plain typed cells
   | { kind: 'boolean'; checked: boolean }
   | { kind: 'select'; options: SelectOption[] }
-  | { kind: 'column-chip'; label: string; icon: React.ComponentType<{ className?: string }> }
+  | { kind: 'column-chip'; label: string }
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string }
   | { kind: 'url'; text: string; href: string; domain: string }
@@ -135,8 +135,7 @@ export function resolveCellRender({
     return rowId
       ? {
           kind: 'column-chip',
-          label: typeDefinition.referencePreview.getChipLabel(column),
-          icon: typeDefinition.icon,
+          label: column.referenceTableName ?? 'Referenced table',
         }
       : { kind: 'empty' }
   }
@@ -397,24 +396,25 @@ export function CellRender({
         </span>
       )
 
-    case 'column-chip': {
-      const ChipIcon = kind.icon
+    case 'column-chip':
       return (
-        <Chip
-          active={referenceAction?.expanded}
-          leftIcon={ChipIcon}
+        <Button
+          variant='ghost'
+          size='sm'
           aria-expanded={referenceAction?.expanded}
           disabled={!referenceAction}
-          className={cn('h-5 max-w-full', isEditing && 'invisible')}
+          className={cn('min-w-0 max-w-full p-0', isEditing && 'invisible')}
           onClick={(event) => {
             event.stopPropagation()
             referenceAction?.onClick()
           }}
+          onDoubleClick={(event) => event.stopPropagation()}
         >
-          {kind.label}
-        </Chip>
+          <ChipTag variant='field' className='min-w-0 max-w-full'>
+            <span className='truncate'>{kind.label}</span>
+          </ChipTag>
+        </Button>
       )
-    }
 
     case 'json':
       return (

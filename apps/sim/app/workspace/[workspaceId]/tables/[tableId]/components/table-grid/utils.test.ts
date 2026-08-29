@@ -12,10 +12,13 @@ import {
   buildTableSelectionContext,
   canWriteRowsWithChip,
   chipRowCount,
+  collectReferenceTableIds,
   columnNameIssue,
   drainTargetForChip,
+  expandToDisplayColumns,
   horizontalEdgeScrollVelocity,
   isSameReferencePreviewTarget,
+  resolveDisplayedReferencePreviewTarget,
   selectedColumnIds,
 } from './utils'
 
@@ -27,6 +30,128 @@ function columns(count: number): DisplayColumn[] {
 }
 
 const rowIds = (count: number) => Array.from({ length: count }, (_, i) => `r${i}`)
+
+describe('expandToDisplayColumns', () => {
+  it('attaches the referenced table name to reference display columns', () => {
+    const [column] = expandToDisplayColumns(
+      [
+        {
+          id: 'account-column',
+          name: 'Account',
+          type: 'reference',
+          referenceTableId: 'accounts-table',
+        },
+      ],
+      [],
+      new Map([['accounts-table', 'Accounts']])
+    )
+
+    expect(column).toMatchObject({ referenceTableName: 'Accounts' })
+  })
+})
+
+describe('collectReferenceTableIds', () => {
+  it('returns each referenced table once in stable order', () => {
+    expect(
+      collectReferenceTableIds([
+        { id: 'name', name: 'Name', type: 'string' },
+        {
+          id: 'owner',
+          name: 'Owner',
+          type: 'reference',
+          referenceTableId: 'table-owners',
+        },
+        {
+          id: 'account',
+          name: 'Account',
+          type: 'reference',
+          referenceTableId: 'table-accounts',
+        },
+        {
+          id: 'backup-owner',
+          name: 'Backup owner',
+          type: 'reference',
+          referenceTableId: 'table-owners',
+        },
+      ])
+    ).toEqual(['table-accounts', 'table-owners'])
+  })
+})
+
+describe('resolveDisplayedReferencePreviewTarget', () => {
+  const first = {
+    sourceRowId: 'row-1',
+    sourceColumnKey: 'account',
+    referenceTableId: 'table-accounts',
+    referenceRowId: 'account-1',
+  }
+  const second = {
+    sourceRowId: 'row-2',
+    sourceColumnKey: 'owner',
+    referenceTableId: 'table-owners',
+    referenceRowId: 'owner-1',
+  }
+
+  it('keeps the completed preview visible while a different target fetches', () => {
+    expect(
+      resolveDisplayedReferencePreviewTarget({
+        activeTarget: second,
+        loadedTarget: first,
+        isFetching: true,
+        isError: false,
+      })
+    ).toEqual(first)
+  })
+
+  it('waits on an initial fetch or same-target refresh', () => {
+    expect(
+      resolveDisplayedReferencePreviewTarget({
+        activeTarget: first,
+        loadedTarget: null,
+        isFetching: true,
+        isError: false,
+      })
+    ).toBeNull()
+    expect(
+      resolveDisplayedReferencePreviewTarget({
+        activeTarget: first,
+        loadedTarget: first,
+        isFetching: true,
+        isError: false,
+      })
+    ).toBeNull()
+  })
+
+  it('switches atomically on completion and reveals terminal errors', () => {
+    expect(
+      resolveDisplayedReferencePreviewTarget({
+        activeTarget: second,
+        loadedTarget: second,
+        isFetching: false,
+        isError: false,
+      })
+    ).toEqual(second)
+    expect(
+      resolveDisplayedReferencePreviewTarget({
+        activeTarget: second,
+        loadedTarget: first,
+        isFetching: false,
+        isError: true,
+      })
+    ).toEqual(second)
+  })
+
+  it('closes when there is no active target', () => {
+    expect(
+      resolveDisplayedReferencePreviewTarget({
+        activeTarget: null,
+        loadedTarget: first,
+        isFetching: false,
+        isError: false,
+      })
+    ).toBeNull()
+  })
+})
 
 describe('isSameReferencePreviewTarget', () => {
   const target = {

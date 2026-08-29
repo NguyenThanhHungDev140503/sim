@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { queryClient, cacheStore } = vi.hoisted(() => {
@@ -27,6 +27,7 @@ const { queryClient, cacheStore } = vi.hoisted(() => {
           .filter(([k]) => k.startsWith(prefix))
           .map(([k, v]) => [JSON.parse(k), v])
       }),
+      ensureQueryData: vi.fn(),
       removeQueries: vi.fn(),
     },
   }
@@ -36,6 +37,7 @@ vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: {},
   infiniteQueryOptions: (opts: unknown) => opts,
   useQuery: vi.fn(),
+  useQueries: vi.fn(() => []),
   useInfiniteQuery: vi.fn(),
   useQueryClient: vi.fn(() => queryClient),
   useMutation: vi.fn((options) => options),
@@ -61,12 +63,18 @@ vi.mock('@sim/emcn', () => ({
 
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { getTableRowContract, type TableViewWire } from '@/lib/api/contracts/tables'
+import {
+  getTableContract,
+  getTableRowContract,
+  type TableViewWire,
+} from '@/lib/api/contracts/tables'
 import {
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
   useBatchUpdateTableRows,
   useDeleteColumn,
+  useReferenceRowPreview,
+  useReferenceTableMetadata,
   useRestoreTable,
   useTableRow,
   useUpdateColumn,
@@ -152,6 +160,125 @@ describe('useTableRow', () => {
     await expect(getQueryOptions().queryFn({ signal: new AbortController().signal })).rejects.toBe(
       error
     )
+  })
+})
+
+describe('useReferenceRowPreview', () => {
+  function getQueryOptions() {
+    return vi.mocked(useQuery).mock.calls.at(-1)?.[0] as {
+      enabled: boolean
+      gcTime: number
+      queryKey: readonly unknown[]
+      placeholderData: unknown
+      refetchOnMount: 'always'
+      refetchOnReconnect: boolean
+      refetchOnWindowFocus: boolean
+      staleTime: number
+      queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
+    }
+  }
+
+  it('isolates each opening and fetches only the referenced row', async () => {
+    const row = { id: 'row-1', data: { name: 'Acme' } }
+    const table = { id: TABLE_ID, name: 'Accounts', schema: { columns: [] } }
+    const signal = new AbortController().signal
+    queryClient.ensureQueryData.mockResolvedValueOnce(table)
+    vi.mocked(requestJson).mockResolvedValueOnce({ data: { row } })
+
+    useReferenceRowPreview(WORKSPACE_ID, TABLE_ID, row.id, 'source-row-1', 'account')
+
+    const options = getQueryOptions()
+    expect(options).toMatchObject({
+      enabled: true,
+      gcTime: 0,
+      placeholderData: expect.anything(),
+      queryKey: tableKeys.referencePreview(TABLE_ID, row.id, 'source-row-1', 'account'),
+      refetchOnMount: 'always',
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+    })
+    await expect(options.queryFn({ signal })).resolves.toEqual({
+      tableId: TABLE_ID,
+      rowId: row.id,
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+      table,
+      row,
+    })
+    expect(queryClient.ensureQueryData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: tableKeys.detail(TABLE_ID),
+        staleTime: Number.POSITIVE_INFINITY,
+      })
+    )
+    expect(requestJson).toHaveBeenCalledOnce()
+    expect(requestJson).toHaveBeenCalledWith(getTableRowContract, {
+      params: { tableId: TABLE_ID, rowId: row.id },
+      query: { workspaceId: WORKSPACE_ID },
+      signal,
+    })
+  })
+
+  it('does not fetch until every referenced-row identity is available', () => {
+    useReferenceRowPreview(WORKSPACE_ID, TABLE_ID, undefined)
+
+    expect(getQueryOptions().enabled).toBe(false)
+  })
+
+  it('uses the source cell to identify each preview opening', () => {
+    useReferenceRowPreview(WORKSPACE_ID, TABLE_ID, 'row-1', 'source-row-1', 'account')
+    const firstOpening = getQueryOptions().queryKey
+
+    useReferenceRowPreview(WORKSPACE_ID, TABLE_ID, 'row-1', 'source-row-2', 'account')
+
+    expect(getQueryOptions().queryKey).not.toEqual(firstOpening)
+  })
+})
+
+describe('useReferenceTableMetadata', () => {
+  it('prefetches only distinct referenced tables through the shared detail cache', async () => {
+    useReferenceTableMetadata(WORKSPACE_ID, ['table-z', 'table-a', 'table-z'])
+
+    const queries = vi.mocked(useQueries).mock.calls.at(-1)?.[0].queries as Array<{
+      enabled: boolean
+      queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
+      queryKey: readonly unknown[]
+      refetchOnWindowFocus: boolean
+      staleTime: number
+    }>
+    expect(queries.map(({ queryKey }) => queryKey)).toEqual([
+      tableKeys.detail('table-a'),
+      tableKeys.detail('table-z'),
+    ])
+    expect(queries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          enabled: true,
+          refetchOnWindowFocus: false,
+          staleTime: Number.POSITIVE_INFINITY,
+        }),
+      ])
+    )
+
+    const signal = new AbortController().signal
+    const table = { id: 'table-a', name: 'Accounts', schema: { columns: [] } }
+    vi.mocked(requestJson).mockResolvedValueOnce({ data: { table } })
+    await expect(queries[0].queryFn({ signal })).resolves.toEqual(table)
+    expect(requestJson).toHaveBeenCalledWith(getTableContract, {
+      params: { tableId: 'table-a' },
+      query: { workspaceId: WORKSPACE_ID },
+      signal,
+    })
+  })
+
+  it('keeps metadata prefetch disabled without a workspace', () => {
+    useReferenceTableMetadata(undefined, ['table-a'])
+
+    const queries = vi.mocked(useQueries).mock.calls.at(-1)?.[0].queries as Array<{
+      enabled: boolean
+    }>
+    expect(queries[0].enabled).toBe(false)
   })
 })
 

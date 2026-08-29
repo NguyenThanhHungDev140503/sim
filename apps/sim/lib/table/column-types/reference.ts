@@ -16,9 +16,6 @@ export const referenceColumnType: ColumnTypeDefinition = {
   editor: 'text',
   expandable: false,
   referencePreview: {
-    getChipLabel(column) {
-      return column.name
-    },
     getTableId(column) {
       return column.referenceTableId
     },

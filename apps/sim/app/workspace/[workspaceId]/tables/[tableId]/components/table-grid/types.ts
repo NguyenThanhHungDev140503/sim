@@ -22,6 +22,8 @@ export interface ColumnSourceInfo {
 export interface DisplayColumn extends ColumnDefinition {
   /** Stable per-visual-column identifier (= column.name). */
   key: string
+  /** Display name of the table targeted by a reference column. */
+  referenceTableName?: string
   /** Block id producing this column's value (workflow-output columns only). */
   outputBlockId?: string
   /** Pluck path the workflow ran for this column. */

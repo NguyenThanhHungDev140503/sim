@@ -75,7 +75,6 @@ export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
 /** Client-side behavior for a column whose stored value can open a referenced row preview. */
 export interface ColumnReferencePreviewDefinition {
-  getChipLabel(column: ColumnDefinition): string
   getTableId(column: ColumnDefinition): string | undefined
   getRowId(value: unknown): string | null
 }

@@ -6,22 +6,11 @@ import { createTableColumn, createTableDefinition, createTableRow } from '@sim/t
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { tableQuery, rowQuery } = vi.hoisted(() => ({
-  tableQuery: {
-    data: undefined as ReturnType<typeof createTableDefinition> | undefined,
-    isLoading: false,
-    isError: false,
-  },
-  rowQuery: {
+const { previewQuery } = vi.hoisted(() => ({
+  previewQuery: {
     data: undefined as ReturnType<typeof createTableRow> | null | undefined,
-    isLoading: false,
     isError: false,
   },
-}))
-
-vi.mock('@/hooks/queries/tables', () => ({
-  useTable: () => tableQuery,
-  useTableRow: () => rowQuery,
 }))
 
 vi.mock('@/lib/table/column-types', () => ({
@@ -29,12 +18,14 @@ vi.mock('@/lib/table/column-types', () => ({
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
-  ArrowRight: () => null,
   Loader: () => null,
+  SquareArrowUpRight: () => <svg data-testid='square-arrow-up-right-icon' />,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells', () => ({
-  CellContent: ({ value }: { value: unknown }) => <span>{String(value)}</span>,
+  CellContent: ({ column, value }: { column: { referenceTableName?: string }; value: unknown }) => (
+    <span data-reference-table-name={column.referenceTableName}>{String(value)}</span>
+  ),
 }))
 
 vi.mock(
@@ -49,6 +40,12 @@ import {
 
 let container: HTMLDivElement
 let root: Root
+let previewTable: ReturnType<typeof createTableDefinition> | undefined
+let previewTableStatus: 'error' | 'ready'
+const REFERENCE_TABLE_NAMES = new Map([
+  ['table-accounts', 'Accounts'],
+  ['table-owners', 'Owners'],
+])
 
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -56,19 +53,17 @@ beforeEach(() => {
     createTableColumn({ id: 'col-name', name: 'Name', type: 'string' }),
     createTableColumn({ id: 'col-tier', name: 'Tier', type: 'string' }),
   ]
-  tableQuery.data = createTableDefinition({
+  previewTable = createTableDefinition({
     id: 'table-accounts',
     name: 'Accounts',
     columns,
   })
-  tableQuery.isLoading = false
-  tableQuery.isError = false
-  rowQuery.data = createTableRow({
+  previewQuery.data = createTableRow({
     id: 'row-account-1',
     data: { 'col-name': 'Acme', 'col-tier': 'Enterprise' },
   })
-  rowQuery.isLoading = false
-  rowQuery.isError = false
+  previewQuery.isError = false
+  previewTableStatus = 'ready'
   container = document.createElement('div')
   document.body.appendChild(container)
   act(() => {
@@ -90,8 +85,12 @@ function renderPreview() {
         <ReferenceRowPreview
           workspaceId='workspace-1'
           referenceTableId='table-accounts'
-          referenceRowId='row-account-1'
+          table={previewTable}
+          tableStatus={previewTableStatus}
+          referenceTableNames={REFERENCE_TABLE_NAMES}
           colSpan={3}
+          row={previewQuery.data}
+          rowError={previewQuery.isError}
         />
       </tbody>
     </table>
@@ -134,7 +133,11 @@ describe('ReferenceRowPreview', () => {
     expect(goToTableLink?.parentElement?.className).toContain('h-9')
     expect(goToTableLink?.parentElement?.className).toContain('gap-1.5')
     expect(goToTableLink?.previousElementSibling?.textContent).toBe('Accounts')
+    expect(goToTableLink?.previousElementSibling?.className).not.toContain('font-medium')
     expect(goToTableLink?.textContent).toBe('')
+    expect(
+      goToTableLink?.querySelector('[data-testid="square-arrow-up-right-icon"]')
+    ).not.toBeNull()
     const previewShell = container.querySelector<HTMLElement>('tbody > tr > td > div > div')
     expect(previewShell?.lastElementChild?.className).toContain('h-9')
     expect(previewShell?.lastElementChild?.querySelector('a')).toBeNull()
@@ -169,6 +172,31 @@ describe('ReferenceRowPreview', () => {
     expect(subtableViewport?.className).toContain('overflow-y-hidden')
     expect(subtableViewport?.className).toContain('border-y')
     expect(container.innerHTML).not.toContain('rounded-md')
+  })
+
+  it('passes referenced table names to reference cells in the preview', () => {
+    const referenceColumn = createTableColumn({
+      id: 'col-owner',
+      name: 'Owner',
+    })
+    Object.assign(referenceColumn, {
+      type: 'reference',
+      referenceTableId: 'table-owners',
+    })
+    previewTable = createTableDefinition({
+      id: 'table-accounts',
+      name: 'Accounts',
+      columns: [referenceColumn],
+    })
+    previewQuery.data = createTableRow({
+      id: 'row-account-1',
+      data: { 'col-owner': 'row-owner-1' },
+    })
+
+    renderPreview()
+
+    const referenceValue = container.querySelector('[data-reference-table-name="Owners"]')
+    expect(referenceValue?.textContent).toBe('row-owner-1')
   })
 
   it('scrolls horizontally when wheel input starts on cell text', () => {
@@ -331,23 +359,15 @@ describe('ReferenceRowPreview', () => {
   })
 
   it('shows no match when the stored row ID does not resolve', () => {
-    rowQuery.data = null
+    previewQuery.data = null
 
     renderPreview()
 
     expect(container.textContent).toContain('No matching row')
   })
 
-  it('shows a loading state while either referenced resource is loading', () => {
-    rowQuery.isLoading = true
-
-    renderPreview()
-
-    expect(container.textContent).toContain('Loading referenced row')
-  })
-
   it('keeps non-404 failures distinct from missing rows', () => {
-    rowQuery.isError = true
+    previewQuery.isError = true
 
     renderPreview()
 
@@ -356,11 +376,51 @@ describe('ReferenceRowPreview', () => {
   })
 
   it('shows an empty-schema state when the referenced table has no columns', () => {
-    if (!tableQuery.data) throw new Error('Expected the table fixture to be initialized')
-    tableQuery.data.schema.columns = []
+    if (!previewTable) throw new Error('Expected the referenced table fixture')
+    previewTable.schema.columns = []
 
     renderPreview()
 
     expect(container.textContent).toContain('This table has no columns')
+  })
+
+  it('shows a terminal error when table metadata fails to load', () => {
+    previewTable = undefined
+    previewTableStatus = 'error'
+
+    renderPreview()
+
+    expect(container.textContent).toContain("Couldn't load referenced table")
+    expect(container.textContent).not.toContain('Loading referenced table')
+  })
+
+  it('shows a terminal unavailable state when prefetched metadata has no table', () => {
+    previewTable = undefined
+    previewTableStatus = 'ready'
+
+    renderPreview()
+
+    expect(container.textContent).toContain('Referenced table unavailable')
+    expect(container.textContent).not.toContain('Loading referenced table')
+  })
+
+  it('preserves row errors for an empty schema', () => {
+    if (!previewTable) throw new Error('Expected the referenced table fixture')
+    previewTable.schema.columns = []
+    previewQuery.data = undefined
+    previewQuery.isError = true
+
+    renderPreview()
+    expect(container.textContent).toContain("Couldn't load referenced row")
+  })
+
+  it('preserves a missing row for an empty schema', () => {
+    if (!previewTable) throw new Error('Expected the referenced table fixture')
+    previewTable.schema.columns = []
+    previewQuery.data = null
+
+    renderPreview()
+    expect(container.textContent).toContain('No matching row')
+    expect(container.textContent).not.toContain('This table has no columns')
   })
 })

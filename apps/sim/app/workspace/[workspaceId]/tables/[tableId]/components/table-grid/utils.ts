@@ -12,6 +12,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type {
@@ -33,6 +34,38 @@ export type RowSelection =
 
 export const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
 export const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
+
+export type ReferenceTableLoadStatus = 'loading' | 'error' | 'ready'
+
+export function collectReferenceTableIds(columns: ColumnDefinition[]): string[] {
+  const ids = new Set<string>()
+  for (const column of columns) {
+    const referencePreview = columnTypeOf(column).referencePreview
+    const tableId = referencePreview?.getTableId(column)
+    if (tableId) ids.add(tableId)
+  }
+  return Array.from(ids).sort()
+}
+
+interface DisplayedReferencePreviewInput {
+  activeTarget: ReferencePreviewTarget | null
+  loadedTarget: ReferencePreviewTarget | null
+  isFetching: boolean
+  isError: boolean
+}
+
+export function resolveDisplayedReferencePreviewTarget({
+  activeTarget,
+  loadedTarget,
+  isFetching,
+  isError,
+}: DisplayedReferencePreviewInput): ReferencePreviewTarget | null {
+  if (!activeTarget) return null
+  if (isError) return activeTarget
+  if (!loadedTarget) return null
+  if (isSameReferencePreviewTarget(activeTarget, loadedTarget) && isFetching) return null
+  return loadedTarget
+}
 
 export function isSameReferencePreviewTarget(
   left: ReferencePreviewTarget | null,
@@ -180,7 +213,8 @@ export type HeaderGroup =
  */
 export function expandToDisplayColumns(
   columns: ColumnDefinition[],
-  workflowGroups: WorkflowGroup[]
+  workflowGroups: WorkflowGroup[],
+  referenceTableNames?: ReadonlyMap<string, string>
 ): DisplayColumn[] {
   const out: DisplayColumn[] = []
   const groupById = new Map(workflowGroups.map((g) => [g.id, g]))
@@ -209,6 +243,9 @@ export function expandToDisplayColumns(
         out.push({
           ...child,
           key: getColumnId(child),
+          referenceTableName: child.referenceTableId
+            ? referenceTableNames?.get(child.referenceTableId)
+            : undefined,
           outputBlockId: output?.blockId,
           outputPath: output?.path,
           groupSize: size,
@@ -222,6 +259,9 @@ export function expandToDisplayColumns(
       out.push({
         ...column,
         key: getColumnId(column),
+        referenceTableName: column.referenceTableId
+          ? referenceTableNames?.get(column.referenceTableId)
+          : undefined,
         groupSize: 1,
         groupStartColIndex: out.length,
         headerLabel: column.name,
