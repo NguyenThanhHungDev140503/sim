@@ -5,7 +5,7 @@ services:
         required: false
     # app, realtime and migrations share a database schema and must move together,
     # so one variable drives all three. Set SIM_VERSION in .env to upgrade.
-    image: ghcr.io/simstudioai/simstudio:${SIM_VERSION:-latest}
+    image: ${SIM_IMAGE:-ghcr.io/nguyenthanhhungdev140503/sim-app}:${SIM_VERSION:-latest}
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -70,7 +70,7 @@ services:
     env_file:
       - path: .env
         required: false
-    image: ghcr.io/simstudioai/realtime:${SIM_VERSION:-latest}
+    image: ${REALTIME_IMAGE:-ghcr.io/nguyenthanhhungdev140503/sim-realtime}:${SIM_VERSION:-latest}
     restart: unless-stopped
     ports:
       - '3002:3002'
@@ -103,7 +103,7 @@ services:
       start_period: 10s
 
   migrations:
-    image: ghcr.io/simstudioai/migrations:${SIM_VERSION:-latest}
+    image: ${MIGRATIONS_IMAGE:-ghcr.io/nguyenthanhhungdev140503/sim-migrations}:${SIM_VERSION:-latest}
     working_dir: /app/packages/db
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
@@ -135,7 +135,7 @@ services:
     # Deliberately NOT pinned to SIM_VERSION: the scheduler only makes HTTP calls
     # and shares no database schema with the app, so it does not need to move in
     # lockstep — and no cron tag exists for releases that predate it.
-    image: ghcr.io/simstudioai/cron:${SIM_CRON_VERSION:-latest}
+    image: ${CRON_IMAGE:-ghcr.io/nguyenthanhhungdev140503/sim-cron}:${SIM_CRON_VERSION:-latest}
     # on-failure, not unless-stopped: with no CRON_SECRET the container exits 0
     # after explaining why, and stays stopped instead of crash-looping. Upgrades
     # from a compose file that predates this service therefore still come up.

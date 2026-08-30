@@ -1,0 +1,68 @@
+name: Deploy to VPS
+
+on:
+  workflow_run:
+    workflows: ["Build & Push GHCR"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase repository owner
+        id: repo-owner
+        run: |
+          echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "$SSH_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync compose config to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH || '/opt/sim' }}
+          SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
+        run: |
+          ssh -p "$SSH_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p $VPS_DEPLOY_PATH"
+          scp -P "$SSH_PORT" docker-compose.prod.yml "$VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/"
+
+      - name: Pull GHCR Images & Deploy on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH || '/opt/sim' }}
+          SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GHCR_PAT: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ssh -p "$SSH_PORT" "$VPS_USER@$VPS_HOST" "
+            set -e
+            cd $VPS_DEPLOY_PATH
+            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+            export SIM_IMAGE='ghcr.io/${{ env.OWNER_LC }}/sim-app'
+            export REALTIME_IMAGE='ghcr.io/${{ env.OWNER_LC }}/sim-realtime'
+            export MIGRATIONS_IMAGE='ghcr.io/${{ env.OWNER_LC }}/sim-migrations'
+            export CRON_IMAGE='ghcr.io/${{ env.OWNER_LC }}/sim-cron'
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml ps
+          "
