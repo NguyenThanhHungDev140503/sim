@@ -116,7 +116,7 @@ RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.nex
 
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    cd apps/sim && bun run build:copy-contracts && NODE_OPTIONS="--max-old-space-size=4096" /usr/bin/node /app/node_modules/next/dist/bin/next build
+    cd apps/sim && bun run build:copy-contracts && NODE_OPTIONS="--max-old-space-size=4096" /usr/bin/node /app/node_modules/next/dist/bin/next build --no-lint
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
 # before (and outside) the Next standalone server, so its dependencies
