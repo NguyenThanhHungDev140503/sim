@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).
-  productionBrowserSourceMaps: true,
+  productionBrowserSourceMaps: false,
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
   },
