@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Button,
   ChipInput,
@@ -56,6 +56,18 @@ export function CustomProviderDialog({
   )
   const [error, setError] = useState<string | null>(null)
   const discoverModels = useDiscoverCustomModels()
+
+  useEffect(() => {
+    if (!open || provider) return
+    setName('')
+    setBaseUrl('')
+    setApiKey('')
+    setProtocol('openai')
+    setManualModel('')
+    setModels([])
+    setSelectedModelIds(new Set())
+    setError(null)
+  }, [open, provider])
 
   const close = () => {
     if (discoverModels.isPending || isSaving) return
