@@ -460,6 +460,7 @@ export const customOpenAIProvider: ProviderConfig = {
             logger,
             timeSegments,
             forcedTools: preparedTools?.forcedTools,
+            preserveAssistantReasoning: true,
             onComplete: (result) => {
               output.content = result.content
               output.tokens = result.tokens

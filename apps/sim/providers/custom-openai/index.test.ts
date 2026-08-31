@@ -8,12 +8,16 @@ const {
   mockValidateUrlWithDNS,
   mockCreatePinnedFetch,
   mockExecuteProviderTool,
+  mockCreateStreamingToolLoop,
+  mockExecuteAnthropicProviderRequest,
   openAIArgs,
 } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
   mockCreatePinnedFetch: vi.fn(() => vi.fn()),
   mockExecuteProviderTool: vi.fn(),
+  mockCreateStreamingToolLoop: vi.fn(),
+  mockExecuteAnthropicProviderRequest: vi.fn(),
   openAIArgs: [] as Record<string, unknown>[],
 }))
 
@@ -79,10 +83,18 @@ vi.mock('@/providers/utils', () => ({
   trackForcedToolUsage: vi.fn(() => ({ usedForcedTools: [] })),
 }))
 vi.mock('@/providers/openai-compat/streaming-tool-loop', () => ({
-  createOpenAICompatStreamingToolLoopStream: vi.fn(),
+  createOpenAICompatStreamingToolLoopStream: mockCreateStreamingToolLoop,
 }))
 vi.mock('@/providers/openai-compat/stream-events', () => ({
   createOpenAICompatibleAgentEventStream: vi.fn(),
+}))
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: class MockAnthropic {
+    constructor(public options: Record<string, unknown>) {}
+  },
+}))
+vi.mock('@/providers/anthropic/core', () => ({
+  executeAnthropicProviderRequest: mockExecuteAnthropicProviderRequest,
 }))
 
 import {
@@ -108,6 +120,8 @@ describe('custom providers', () => {
     mockValidateUrlWithDNS.mockReset()
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.8' })
     mockExecuteProviderTool.mockReset()
+    mockCreateStreamingToolLoop.mockReset()
+    mockExecuteAnthropicProviderRequest.mockReset()
     openAIArgs.length = 0
     delete process.env.CUSTOM_OPENAI_BASE_URL
     delete process.env.CUSTOM_ANTHROPIC_BASE_URL
@@ -196,6 +210,24 @@ describe('custom providers', () => {
     ).rejects.toThrow('Invalid custom Anthropic endpoint: private address')
   })
 
+  it('pins a valid custom Anthropic endpoint', async () => {
+    mockExecuteAnthropicProviderRequest.mockResolvedValue({ content: 'ok' })
+
+    await customAnthropicProvider.executeRequest({
+      model: 'custom-anthropic/model',
+      customEndpoint: 'https://anthropic.example.com',
+      apiKey: 'key',
+      messages: [{ role: 'user', content: 'hi' }],
+    })
+
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'https://anthropic.example.com',
+      'custom Anthropic endpoint',
+      { allowHttp: true }
+    )
+    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.8')
+  })
+
   it('executes non-stream tool loop and preserves reasoning metadata', async () => {
     mockCreate
       .mockResolvedValueOnce({
@@ -240,6 +272,11 @@ describe('custom providers', () => {
     })
 
     expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'https://custom.example.com',
+      'custom OpenAI endpoint',
+      { allowHttp: true }
+    )
     expect(mockExecuteProviderTool).toHaveBeenCalledTimes(1)
     expect((result as { content: string }).content).toBe('done')
     expect((result as { tokens: { total: number } }).tokens.total).toBe(14)
@@ -247,6 +284,30 @@ describe('custom providers', () => {
       (result as { timing: { timeSegments: Array<{ thinkingContent?: string }> } }).timing
         .timeSegments[0].thinkingContent
     ).toBe('thinking')
+  })
+
+  it('preserves reasoning for later streaming tool-loop turns', async () => {
+    mockCreateStreamingToolLoop.mockReturnValue(new ReadableStream())
+
+    const execution = (await customOpenAIProvider.executeRequest({
+      model: 'custom-openai/model',
+      customEndpoint: 'https://custom.example.com',
+      apiKey: 'key',
+      stream: true,
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [tool],
+    })) as unknown as {
+      createStream: (handles: {
+        output: Record<string, unknown>
+        finalizeTiming: () => void
+      }) => ReadableStream<unknown>
+    }
+
+    execution.createStream({ output: {}, finalizeTiming: vi.fn() })
+
+    expect(mockCreateStreamingToolLoop).toHaveBeenCalledWith(
+      expect.objectContaining({ preserveAssistantReasoning: true })
+    )
   })
 
   it('normalizes stop finish reason only when tool calls exist', () => {
