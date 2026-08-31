@@ -12,6 +12,7 @@ export const size = COVER_OG_SIZE
  * share generateStaticParams between a page and its sibling metadata
  * routes, so without this export every provider's OG image 404s.
  */
+export const dynamicParams = true
 export const dynamic = 'force-dynamic'
 
 export default async function ProviderOgImage({ params }: { params: Promise<{ provider: string }> }) {

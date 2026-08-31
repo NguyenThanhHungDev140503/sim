@@ -21,6 +21,7 @@ export async function generateStaticParams() {
   return integrations.map((integration) => ({ slug: integration.slug }))
 }
 
+export const dynamicParams = true
 export const dynamic = 'force-dynamic'
 
 export default async function IntegrationOgImage({ params }: { params: Promise<{ slug: string }> }) {

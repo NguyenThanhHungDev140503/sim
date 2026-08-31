@@ -70,9 +70,7 @@ export async function generateMetadata({
   }
 }
 
-export const dynamic = 'force-dynamic'
-
-export default async function ProviderPage({
+export default async function ProviderModelsPage({
   params,
 }: {
   params: Promise<{ provider: string }>
