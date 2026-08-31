@@ -34,6 +34,9 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidateUrlWithDNS,
   createPinnedFetch: mockCreatePinnedFetch,
 }))
+vi.mock('@/lib/core/config/env-flags', () => ({
+  isPrivateCustomEndpointsAllowed: false,
+}))
 vi.mock('@/providers/client-cache', () => ({
   getCachedProviderClient: vi.fn((_key, create) => create()),
 }))
@@ -125,6 +128,7 @@ describe('custom providers', () => {
     openAIArgs.length = 0
     delete process.env.CUSTOM_OPENAI_BASE_URL
     delete process.env.CUSTOM_ANTHROPIC_BASE_URL
+    delete process.env.CUSTOM_ANTHROPIC_API_KEY
   })
 
   it('registers both provider ids', () => {
@@ -192,6 +196,11 @@ describe('custom providers', () => {
         messages: [{ role: 'user', content: 'hi' }],
       })
     ).rejects.toThrow('Invalid custom OpenAI endpoint: private address')
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'http://127.0.0.1:8000',
+      'custom OpenAI endpoint',
+      { allowHttp: true, allowLocalhost: false }
+    )
   })
 
   it('rejects custom Anthropic endpoint before client creation when DNS validation fails', async () => {
@@ -208,6 +217,11 @@ describe('custom providers', () => {
         messages: [{ role: 'user', content: 'hi' }],
       })
     ).rejects.toThrow('Invalid custom Anthropic endpoint: private address')
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'http://127.0.0.1:8000',
+      'custom Anthropic endpoint',
+      { allowHttp: true, allowLocalhost: false }
+    )
   })
 
   it('pins a valid custom Anthropic endpoint', async () => {

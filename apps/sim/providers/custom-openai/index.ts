@@ -32,6 +32,7 @@ import {
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { isPrivateCustomEndpointsAllowed } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('CustomOpenAIProvider')
 
@@ -114,6 +115,7 @@ async function createOpenAIClient(request: ProviderRequest): Promise<OpenAI> {
   let pinnedIP: string | undefined
   const validation = await validateUrlWithDNS(endpoint, 'custom OpenAI endpoint', {
     allowHttp: true,
+    allowLocalhost: isPrivateCustomEndpointsAllowed,
   })
   if (!validation.isValid) throw new Error(`Invalid custom OpenAI endpoint: ${validation.error}`)
   if (!validation.resolvedIP) throw new Error('Custom OpenAI endpoint could not be pinned')
@@ -164,6 +166,7 @@ type Completion = OpenAI.Chat.Completions.ChatCompletion
 function asCompletionPayload(
   payload: Record<string, unknown>
 ): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
+  // double-cast-allowed: provider payload is assembled dynamically before SDK narrowing.
   return payload as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
 }
 
@@ -508,6 +511,7 @@ export const customAnthropicProvider: ProviderConfig = {
     if (!apiKey) throw new Error('API key is required for Custom Anthropic')
     const validation = await validateUrlWithDNS(endpoint, 'custom Anthropic endpoint', {
       allowHttp: true,
+      allowLocalhost: isPrivateCustomEndpointsAllowed,
     })
     if (!validation.isValid) {
       throw new Error(`Invalid custom Anthropic endpoint: ${validation.error}`)
