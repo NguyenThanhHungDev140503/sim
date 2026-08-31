@@ -199,7 +199,7 @@ describe('custom providers', () => {
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'http://127.0.0.1:8000',
       'custom OpenAI endpoint',
-      { allowHttp: true, allowLocalhost: false }
+      { allowHttp: true, allowLocalhost: false, allowPrivate: false }
     )
   })
 
@@ -220,7 +220,7 @@ describe('custom providers', () => {
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'http://127.0.0.1:8000',
       'custom Anthropic endpoint',
-      { allowHttp: true, allowLocalhost: false }
+      { allowHttp: true, allowLocalhost: false, allowPrivate: false }
     )
   })
 
@@ -360,5 +360,53 @@ describe('custom providers', () => {
       ],
     })
     expect(normalized.choices[0].finish_reason).toBe('tool_calls')
+  })
+
+  it('synthesizes final answer without tools after tool iteration limit', async () => {
+    const toolResponse = {
+      choices: [
+        {
+          message: {
+            content: '',
+            tool_calls: [
+              {
+                id: 'call-1',
+                type: 'function',
+                function: { name: 'lookup', arguments: '{}' },
+              },
+            ],
+          },
+          finish_reason: 'tool_calls',
+        },
+      ],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    }
+    mockCreate
+      .mockResolvedValueOnce(toolResponse)
+      .mockResolvedValueOnce(toolResponse)
+      .mockResolvedValueOnce(toolResponse)
+      .mockResolvedValueOnce(toolResponse)
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: 'synthesized' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+      })
+    mockExecuteProviderTool.mockResolvedValue({
+      rawResponse: { success: true, output: { value: 42 } },
+      modelResponse: { success: true, output: { value: 42 } },
+    })
+
+    const result = await customOpenAIProvider.executeRequest({
+      model: 'custom-openai/model',
+      customEndpoint: 'https://custom.example.com',
+      apiKey: 'key',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [tool],
+    })
+
+    expect((result as { content: string }).content).toBe('synthesized')
+    expect(mockCreate).toHaveBeenCalledTimes(5)
+    const synthesisPayload = mockCreate.mock.calls[4][0]
+    expect(synthesisPayload.tools).toBeUndefined()
+    expect(synthesisPayload.tool_choice).toBeUndefined()
   })
 })

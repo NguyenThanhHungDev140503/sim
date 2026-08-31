@@ -116,6 +116,7 @@ async function createOpenAIClient(request: ProviderRequest): Promise<OpenAI> {
   const validation = await validateUrlWithDNS(endpoint, 'custom OpenAI endpoint', {
     allowHttp: true,
     allowLocalhost: isPrivateCustomEndpointsAllowed,
+    allowPrivate: isPrivateCustomEndpointsAllowed,
   })
   if (!validation.isValid) throw new Error(`Invalid custom OpenAI endpoint: ${validation.error}`)
   if (!validation.resolvedIP) throw new Error('Custom OpenAI endpoint could not be pinned')
@@ -352,6 +353,35 @@ async function executeNonStreamingRequest(
       )
       iterations++
     }
+
+    if (iterations >= MAX_TOOL_ITERATIONS && response.choices[0]?.message?.tool_calls?.length) {
+      const synthesisStart = Date.now()
+      const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
+      response = normalizeCustomOpenAIFinishReason(
+        await client.chat.completions.create(
+          asCompletionPayload({
+            ...synthesisPayload,
+            messages: currentMessages,
+          }),
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
+      )
+      content = response.choices[0]?.message?.content || content
+      tokens.input += response.usage?.prompt_tokens || 0
+      tokens.output += response.usage?.completion_tokens || 0
+      tokens.total += response.usage?.total_tokens || 0
+      timeSegments.push({
+        type: 'model',
+        name: 'Final answer after tool limit',
+        startTime: synthesisStart,
+        endTime: Date.now(),
+        duration: Date.now() - synthesisStart,
+      })
+      enrichLastModelSegmentFromChatCompletions(timeSegments, response, undefined, {
+        model: request.model,
+        provider: 'custom-openai',
+      })
+    }
   } catch (error) {
     throw new ProviderError(
       `Custom OpenAI request failed: ${getErrorMessage(error, 'Unknown error')}`,
@@ -512,6 +542,7 @@ export const customAnthropicProvider: ProviderConfig = {
     const validation = await validateUrlWithDNS(endpoint, 'custom Anthropic endpoint', {
       allowHttp: true,
       allowLocalhost: isPrivateCustomEndpointsAllowed,
+      allowPrivate: isPrivateCustomEndpointsAllowed,
     })
     if (!validation.isValid) {
       throw new Error(`Invalid custom Anthropic endpoint: ${validation.error}`)
