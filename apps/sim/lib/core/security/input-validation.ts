@@ -701,7 +701,7 @@ export function validateJiraIssueKey(
 export function validateExternalUrl(
   url: string | null | undefined,
   paramName = 'url',
-  options: { allowHttp?: boolean } = {}
+  options: { allowHttp?: boolean; allowLocalhost?: boolean; allowPrivate?: boolean } = {}
 ): ValidationResult {
   if (!url || typeof url !== 'string') {
     return {
@@ -738,6 +738,13 @@ export function validateExternalUrl(
     }
   }
 
+  if (isLocalhost && options.allowLocalhost === false) {
+    return {
+      isValid: false,
+      error: `${paramName} cannot point to localhost`,
+    }
+  }
+
   if (options.allowHttp) {
     if (protocol !== 'https:' && protocol !== 'http:') {
       return {
@@ -752,7 +759,7 @@ export function validateExternalUrl(
     }
   }
 
-  if (!isLocalhost && ipaddr.isValid(cleanHostname)) {
+  if (!options.allowPrivate && !isLocalhost && ipaddr.isValid(cleanHostname)) {
     if (isPrivateIp(cleanHostname)) {
       return {
         isValid: false,

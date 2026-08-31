@@ -13,6 +13,7 @@ vi.mock('@sim/security/dns', () => ({
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   isHosted: false,
+  isPrivateCustomEndpointsAllowed: false,
   isPrivateDatabaseHostsAllowed: false,
   getProxyUrl: () => undefined,
 }))
@@ -54,6 +55,42 @@ describe('validateUrlWithDNS address classification', () => {
     expect(result.error).toContain('blocked IP address')
   })
 
+  it('allows private records only when custom endpoint opt-in is enabled', async () => {
+    mockResolve.mockResolvedValue(resolved(['10.0.0.5']))
+
+    const withoutOptIn = await validateUrlWithDNS('https://internal.example/api', 'custom endpoint')
+    expect(withoutOptIn.isValid).toBe(false)
+
+    const withOptIn = await validateUrlWithDNS('https://internal.example/api', 'custom endpoint', {
+      allowPrivate: true,
+    })
+    expect(withOptIn.isValid).toBe(true)
+    expect(withOptIn.resolvedIP).toBe('10.0.0.5')
+  })
+
+  it('blocks cloud metadata hosts even when private endpoints are allowed', async () => {
+    mockResolve.mockResolvedValue(resolved(['169.254.169.254']))
+
+    await expect(
+      validateUrlWithDNS('https://metadata.google.internal', 'custom endpoint', {
+        allowPrivate: true,
+      })
+    ).resolves.toMatchObject({ isValid: false })
+
+    await expect(
+      validateUrlWithDNS('https://metadata.google.internal.', 'custom endpoint', {
+        allowPrivate: true,
+      })
+    ).resolves.toMatchObject({ isValid: false })
+
+    await expect(
+      validateUrlWithDNS('http://169.254.169.254', 'custom endpoint', {
+        allowHttp: true,
+        allowPrivate: true,
+      })
+    ).resolves.toMatchObject({ isValid: false })
+  })
+
   it('never pins an address the filter refused', async () => {
     // The private record sorts first AND is the IPv4 one, so a pin taken from
     // the unfiltered set would land on 10.0.0.5.
@@ -78,6 +115,18 @@ describe('validateUrlWithDNS address classification', () => {
     mockResolve.mockResolvedValue(resolved(['127.0.0.1', '::1']))
 
     expect((await validateUrlWithDNS('https://localhost/api')).isValid).toBe(true)
+  })
+
+  it('blocks localhost when custom endpoint opt-in is disabled', async () => {
+    mockResolve.mockResolvedValue(resolved(['127.0.0.1']))
+
+    const result = await validateUrlWithDNS('http://localhost:8080/api', 'custom endpoint', {
+      allowHttp: true,
+      allowLocalhost: false,
+    })
+
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('cannot point to localhost')
   })
 
   it('drops an off-loopback record from localhost rather than pinning it', async () => {

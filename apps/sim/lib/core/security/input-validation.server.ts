@@ -17,7 +17,10 @@ import {
   type RequestInit as UndiciRequestInit,
   request as undiciRequest,
 } from 'undici'
-import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
+import {
+  isHosted,
+  isPrivateDatabaseHostsAllowed,
+} from '@/lib/core/config/env-flags'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
@@ -49,7 +52,11 @@ export interface AsyncValidationResult extends ValidationResult {
 export async function validateUrlWithDNS(
   url: string | null | undefined,
   paramName = 'url',
-  options: { allowHttp?: boolean } = {}
+  options: {
+    allowHttp?: boolean
+    allowLocalhost?: boolean
+    allowPrivate?: boolean
+  } = {}
 ): Promise<AsyncValidationResult> {
   const basicValidation = validateExternalUrl(url, paramName, options)
   if (!basicValidation.isValid) {
@@ -60,7 +67,14 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   const hostnameLower = hostname.toLowerCase()
-  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
+  const cleanHostname = unwrapIpv6Brackets(hostnameLower).replace(/\.$/, '')
+
+  if (cleanHostname === 'metadata.google.internal') {
+    return {
+      isValid: false,
+      error: `${paramName} cannot point to a cloud metadata endpoint`,
+    }
+  }
 
   // Whole loopback range — see the matching note in input-validation.ts.
   const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
@@ -72,9 +86,14 @@ export async function validateUrlWithDNS(
     // split-horizon resolver that answers with a private record alongside the
     // public one — with no operator opt-out on this path.
     const { addresses } = await resolveHostAddresses(cleanHostname)
-    const usable = addresses.filter(
-      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
-    )
+    const usable = addresses.filter((address) => {
+      if (isCloudMetadataAddress(address)) return false
+      return (
+        !isPrivateIp(address) ||
+        (options.allowPrivate && !isHosted) ||
+        (options.allowLocalhost !== false && isLocalhost && !isHosted && isLoopbackIp(address))
+      )
+    })
 
     if (usable.length === 0) {
       logger.warn('URL resolves to blocked IP address', {
@@ -105,6 +124,14 @@ export async function validateUrlWithDNS(
       isValid: false,
       error: `${paramName} hostname could not be resolved`,
     }
+  }
+}
+
+function isCloudMetadataAddress(address: string): boolean {
+  try {
+    return ipaddr.process(address).toNormalizedString() === '169.254.169.254'
+  } catch {
+    return false
   }
 }
 

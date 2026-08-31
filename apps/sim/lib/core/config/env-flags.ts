@@ -144,6 +144,13 @@ if (isTruthy(env.DISABLE_AUTH)) {
  */
 export const isPrivateDatabaseHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS) && !isHosted
 
+/**
+ * Whether custom LLM endpoint discovery may connect to private, reserved, or
+ * loopback hosts. Off by default. Hosted deployments ignore this opt-in.
+ */
+export const isPrivateCustomEndpointsAllowed =
+  isTruthy(env.ALLOW_PRIVATE_CUSTOM_ENDPOINTS) && !isHosted
+
 if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
   import('@sim/logger')
     .then(({ createLogger }) => {
