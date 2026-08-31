@@ -16,6 +16,9 @@ export const AuditAction = {
   BYOK_KEY_CREATED: 'byok_key.created',
   BYOK_KEY_UPDATED: 'byok_key.updated',
   BYOK_KEY_DELETED: 'byok_key.deleted',
+  CUSTOM_ENDPOINT_CREATED: 'custom_endpoint.created',
+  CUSTOM_ENDPOINT_UPDATED: 'custom_endpoint.updated',
+  CUSTOM_ENDPOINT_DELETED: 'custom_endpoint.deleted',
 
   // Chat
   CHAT_DEPLOYED: 'chat.deployed',
@@ -243,6 +246,7 @@ export const AuditResourceType = {
   API_KEY: 'api_key',
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
+  CUSTOM_ENDPOINT: 'custom_endpoint',
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',

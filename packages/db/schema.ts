@@ -830,6 +830,31 @@ export const workspaceBYOKKeys = pgTable(
   })
 )
 
+export const workspaceCustomEndpoints = pgTable(
+  'workspace_custom_endpoints',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    protocol: text('protocol').notNull(),
+    baseUrl: text('base_url').notNull(),
+    encryptedApiKey: text('encrypted_api_key'),
+    models: jsonb('models').$type<string[]>().notNull().default([]),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdx: index('workspace_custom_endpoints_workspace_idx').on(table.workspaceId),
+    workspaceNameUnique: uniqueIndex('workspace_custom_endpoints_workspace_name_unique').on(
+      table.workspaceId,
+      table.name
+    ),
+  })
+)
+
 export const organizationBYOKKeys = pgTable(
   'organization_byok_keys',
   {

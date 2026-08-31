@@ -14,6 +14,7 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
+  CustomProvider,
   DiscoverCustomModelsInput,
   DiscoverCustomModelsResponse,
 } from '@/lib/api/contracts/custom-providers'
@@ -23,9 +24,9 @@ import { CustomProvidersList } from '@/app/workspace/[workspaceId]/settings/comp
 interface CustomProviderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  canSaveProvider?: boolean
-  saveDisabledReason?: string
-  onSaveProvider?: (input: DiscoverCustomModelsInput & { models: string[] }) => Promise<void>
+  provider?: CustomProvider
+  canSaveProvider: boolean
+  onSaveProvider: (input: DiscoverCustomModelsInput & { name: string; models: string[]; id?: string }) => Promise<void>
 }
 
 const PROTOCOL_OPTIONS = [
@@ -36,16 +37,21 @@ const PROTOCOL_OPTIONS = [
 export function CustomProviderDialog({
   open,
   onOpenChange,
-  canSaveProvider = false,
-  saveDisabledReason = 'Custom provider persistence is not available.',
+  provider,
+  canSaveProvider,
   onSaveProvider,
 }: CustomProviderDialogProps) {
-  const [baseUrl, setBaseUrl] = useState('')
+  const [name, setName] = useState(provider?.name ?? '')
+  const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? '')
   const [apiKey, setApiKey] = useState('')
-  const [protocol, setProtocol] = useState<DiscoverCustomModelsInput['protocol']>('openai')
+  const [protocol, setProtocol] = useState<DiscoverCustomModelsInput['protocol']>(provider?.protocol ?? 'openai')
   const [manualModel, setManualModel] = useState('')
-  const [models, setModels] = useState<DiscoverCustomModelsResponse['models']>([])
-  const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set())
+  const [models, setModels] = useState<DiscoverCustomModelsResponse['models']>(
+    provider?.models.map((id) => ({ id, name: id })) ?? []
+  )
+  const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(
+    new Set(provider?.models ?? [])
+  )
   const [error, setError] = useState<string | null>(null)
   const discoverModels = useDiscoverCustomModels()
 
@@ -75,10 +81,10 @@ export function CustomProviderDialog({
   }
 
   const handleSave = async () => {
-    if (!onSaveProvider || !canSaveProvider || selectedModelIds.size === 0) return
+    if (!canSaveProvider || selectedModelIds.size === 0 || !name.trim()) return
     setError(null)
     try {
-      await onSaveProvider({ baseUrl, apiKey, protocol, models: [...selectedModelIds] })
+      await onSaveProvider({ id: provider?.id, name: name.trim(), baseUrl, apiKey: apiKey || undefined, protocol, models: [...selectedModelIds] })
       close()
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to save custom provider'))
@@ -86,9 +92,11 @@ export function CustomProviderDialog({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Add Custom Provider'>
-      <ChipModalHeader onClose={close}>Add Custom Provider</ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={provider ? 'Edit Custom Provider' : 'Add Custom Provider'}>
+      <ChipModalHeader onClose={close}>{provider ? 'Edit Custom Provider' : 'Add Custom Provider'}</ChipModalHeader>
       <ChipModalBody>
+        <ChipModalField type='input' title='Provider name' value={name} onChange={setName} required
+          placeholder='My OpenAI endpoint' />
         <ChipModalField type='input' title='Base URL' value={baseUrl} onChange={setBaseUrl} required
           placeholder='https://api.example.com/v1' />
         <ChipModalField type='custom' title='API Key'>
@@ -143,17 +151,17 @@ export function CustomProviderDialog({
             </div>
           </div>
         </ChipModalField>
-        {!canSaveProvider && <ChipModalError>{saveDisabledReason}</ChipModalError>}
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={close}
         cancelDisabled={discoverModels.isPending}
         primaryAction={{
-          label: 'Save Provider',
+          label: provider ? 'Update Provider' : 'Save Provider',
           onClick: handleSave,
           disabled:
             !canSaveProvider ||
+            !name.trim() ||
             !baseUrl.trim() ||
             selectedModelIds.size === 0 ||
             discoverModels.isPending,

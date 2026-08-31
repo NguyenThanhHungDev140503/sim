@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 
 export const discoverCustomModelsBodySchema = z.object({
   baseUrl: z
@@ -43,3 +44,64 @@ export const discoverCustomModelsContract = defineRouteContract({
     schema: discoverCustomModelsResponseSchema,
   },
 })
+
+export const customProviderIdSchema = z.string().trim().min(1)
+export const customProviderProtocolSchema = z.enum(['openai', 'anthropic'])
+export const customProviderModelSchema = z.string().trim().min(1).max(200)
+export const customProviderSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  protocol: customProviderProtocolSchema,
+  baseUrl: z.string().url(),
+  hasApiKey: z.boolean(),
+  maskedApiKey: z.string().nullable(),
+  models: z.array(customProviderModelSchema),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type CustomProvider = z.output<typeof customProviderSchema>
+
+const customProviderInputSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  name: z.string().trim().min(1, 'Provider name is required').max(120),
+  baseUrl: z.string().trim().url('Base URL must be a valid URL'),
+  apiKey: z.string().optional(),
+  protocol: customProviderProtocolSchema,
+  models: z.array(customProviderModelSchema).min(1, 'Select at least one model').max(200),
+})
+
+const customProviderParamsSchema = z.object({ id: customProviderIdSchema })
+
+export const listCustomProvidersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/custom',
+  query: z.object({ workspaceId: workspaceIdSchema }),
+  response: { mode: 'json', schema: z.object({ providers: z.array(customProviderSchema) }) },
+})
+
+export const createCustomProviderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/providers/custom',
+  body: customProviderInputSchema,
+  response: { mode: 'json', schema: z.object({ success: z.literal(true), provider: customProviderSchema }) },
+})
+
+export const updateCustomProviderContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/providers/custom/[id]',
+  params: customProviderParamsSchema,
+  body: customProviderInputSchema,
+  response: { mode: 'json', schema: z.object({ success: z.literal(true), provider: customProviderSchema }) },
+})
+
+export const deleteCustomProviderContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/providers/custom/[id]',
+  params: customProviderParamsSchema,
+  body: z.object({ workspaceId: workspaceIdSchema }),
+  response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
+})
+
+export type ListCustomProvidersResponse = z.output<typeof listCustomProvidersContract.response.schema>
+export type CreateCustomProviderInput = z.input<typeof customProviderInputSchema>
+export type UpdateCustomProviderInput = CreateCustomProviderInput & { id: string }

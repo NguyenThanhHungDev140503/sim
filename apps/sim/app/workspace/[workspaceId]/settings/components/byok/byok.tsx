@@ -73,6 +73,13 @@ import {
   useUpsertBYOKKey,
   useUpsertOrganizationBYOKKey,
 } from '@/hooks/queries/byok-keys'
+import {
+  useCreateCustomProvider,
+  useCustomProviders,
+  useDeleteCustomProvider,
+  useUpdateCustomProvider,
+} from '@/hooks/queries/custom-providers'
+import type { CustomProvider } from '@/lib/api/contracts/custom-providers'
 
 const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
   {
@@ -412,6 +419,7 @@ export function BYOK() {
   })
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [customProviderDialogOpen, setCustomProviderDialogOpen] = useState(false)
+  const [editingCustomProvider, setEditingCustomProvider] = useState<CustomProvider | undefined>()
   const effectiveScope =
     requestedScope === 'organization' && canSelectOrganization ? 'organization' : 'workspace'
   const isOrganizationScope = effectiveScope === 'organization'
@@ -428,6 +436,10 @@ export function BYOK() {
   const deleteWorkspaceKey = useDeleteBYOKKey()
   const upsertOrganizationKey = useUpsertOrganizationBYOKKey()
   const deleteOrganizationKey = useDeleteOrganizationBYOKKey()
+  const customProviders = useCustomProviders(workspaceId)
+  const createCustomProvider = useCreateCustomProvider()
+  const updateCustomProvider = useUpdateCustomProvider()
+  const deleteCustomProvider = useDeleteCustomProvider()
 
   const activeKeys = isOrganizationScope ? organizationKeys.data?.keys : workspaceKeys.data?.keys
   const isLoading = isOrganizationScope ? organizationKeys.isLoading : workspaceKeys.isLoading
@@ -576,7 +588,14 @@ export function BYOK() {
       <SettingsSection
         label='Custom AI endpoints'
         action={
-          <Button variant='primary' onClick={() => setCustomProviderDialogOpen(true)}>
+          <Button
+            variant='primary'
+            onClick={() => {
+              setEditingCustomProvider(undefined)
+              setCustomProviderDialogOpen(true)
+            }}
+            disabled={!canManageWorkspace}
+          >
             Add Custom Provider
           </Button>
         }
@@ -586,17 +605,36 @@ export function BYOK() {
             Connect OpenAI-compatible or Anthropic-compatible endpoints and choose available models.
           </p>
           <CustomProvidersList
-            models={[]}
-            selectedModelIds={new Set()}
-            onSelectedModelIdsChange={() => undefined}
-            disabled
+            providers={customProviders.data?.providers ?? []}
+            disabled={customProviders.isLoading || deleteCustomProvider.isPending}
+            onEditProvider={(provider) => {
+              setEditingCustomProvider(provider)
+              setCustomProviderDialogOpen(true)
+            }}
+            onDeleteProvider={(provider) => {
+              if (window.confirm(`Delete custom provider "${provider.name}"?`)) {
+                void deleteCustomProvider.mutateAsync({ id: provider.id, workspaceId })
+              }
+            }}
           />
         </div>
       </SettingsSection>
       <CustomProviderDialog
+        key={editingCustomProvider?.id ?? 'new'}
         open={customProviderDialogOpen}
-        onOpenChange={setCustomProviderDialogOpen}
-        saveDisabledReason='Custom provider persistence endpoint is not available yet. Models loaded here are not saved.'
+        onOpenChange={(open) => {
+          setCustomProviderDialogOpen(open)
+          if (!open) setEditingCustomProvider(undefined)
+        }}
+        provider={editingCustomProvider}
+        canSaveProvider={canManageWorkspace}
+        onSaveProvider={async (input) => {
+          if (input.id) {
+            await updateCustomProvider.mutateAsync({ ...input, id: input.id, workspaceId })
+          } else {
+            await createCustomProvider.mutateAsync({ ...input, workspaceId })
+          }
+        }}
       />
     </SettingsPanel>
   )

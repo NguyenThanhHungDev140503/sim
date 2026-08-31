@@ -1,23 +1,32 @@
 'use client'
 
-import { Checkbox, ChipInput, ChipTag } from '@sim/emcn'
+import { Button, Checkbox, ChipInput, ChipTag } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import { useMemo, useState } from 'react'
-import type { DiscoverCustomModelsResponse } from '@/lib/api/contracts/custom-providers'
+import type {
+  CustomProvider,
+  DiscoverCustomModelsResponse,
+} from '@/lib/api/contracts/custom-providers'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 interface CustomProvidersListProps {
-  models: DiscoverCustomModelsResponse['models']
-  selectedModelIds: Set<string>
-  onSelectedModelIdsChange: (modelIds: Set<string>) => void
+  models?: DiscoverCustomModelsResponse['models']
+  selectedModelIds?: Set<string>
+  onSelectedModelIdsChange?: (modelIds: Set<string>) => void
   disabled?: boolean
+  providers?: CustomProvider[]
+  onEditProvider?: (provider: CustomProvider) => void
+  onDeleteProvider?: (provider: CustomProvider) => void
 }
 
 export function CustomProvidersList({
-  models,
-  selectedModelIds,
-  onSelectedModelIdsChange,
+  models = [],
+  selectedModelIds = new Set(),
+  onSelectedModelIdsChange = () => undefined,
   disabled = false,
+  providers,
+  onEditProvider,
+  onDeleteProvider,
 }: CustomProvidersListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const filteredModels = useMemo(() => {
@@ -28,6 +37,32 @@ export function CustomProvidersList({
         model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query)
     )
   }, [models, searchTerm])
+
+  if (providers) {
+    if (providers.length === 0) {
+      return <SettingsEmptyState variant='inline'>No custom providers saved.</SettingsEmptyState>
+    }
+    return (
+      <div className='flex flex-col gap-2'>
+        {providers.map((provider) => (
+          <div key={provider.id} className='flex items-center justify-between rounded-md border border-[var(--border)] p-3'>
+            <div className='min-w-0'>
+              <div className='flex items-center gap-2'>
+                <span className='truncate text-sm'>{provider.name}</span>
+                <ChipTag variant='gray'>{provider.protocol}</ChipTag>
+              </div>
+              <p className='truncate font-mono text-[var(--text-muted)] text-caption'>{provider.baseUrl}</p>
+              <p className='text-[var(--text-secondary)] text-xs'>{provider.models.length} models</p>
+            </div>
+            <div className='flex shrink-0 items-center gap-2'>
+              <Button variant='ghost' onClick={() => onEditProvider?.(provider)} disabled={disabled}>Edit</Button>
+              <Button variant='ghost' onClick={() => onDeleteProvider?.(provider)} disabled={disabled}>Delete</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   const allSelected = models.length > 0 && models.every((model) => selectedModelIds.has(model.id))
 
