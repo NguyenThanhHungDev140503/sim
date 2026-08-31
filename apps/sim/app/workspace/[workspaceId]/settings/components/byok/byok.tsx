@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { ChipTag } from '@sim/emcn'
+import { useMemo, useState } from 'react'
+import { Button, ChipTag } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
@@ -60,6 +60,9 @@ import {
   type BYOKProviderSection,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { CustomProviderDialog } from '@/app/workspace/[workspaceId]/settings/components/custom-providers/custom-provider-dialog'
+import { CustomProvidersList } from '@/app/workspace/[workspaceId]/settings/components/custom-providers/custom-providers-list'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useBYOKKeys,
@@ -408,6 +411,7 @@ export function BYOK() {
     ...byokScopeUrlKeys,
   })
   const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const [customProviderDialogOpen, setCustomProviderDialogOpen] = useState(false)
   const effectiveScope =
     requestedScope === 'organization' && canSelectOrganization ? 'organization' : 'workspace'
   const isOrganizationScope = effectiveScope === 'organization'
@@ -568,6 +572,31 @@ export function BYOK() {
             keyId,
           })
         }}
+      />
+      <SettingsSection
+        label='Custom AI endpoints'
+        action={
+          <Button variant='primary' onClick={() => setCustomProviderDialogOpen(true)}>
+            Add Custom Provider
+          </Button>
+        }
+      >
+        <div className='flex flex-col gap-2'>
+          <p className='text-[var(--text-secondary)] text-sm'>
+            Connect OpenAI-compatible or Anthropic-compatible endpoints and choose available models.
+          </p>
+          <CustomProvidersList
+            models={[]}
+            selectedModelIds={new Set()}
+            onSelectedModelIdsChange={() => undefined}
+            disabled
+          />
+        </div>
+      </SettingsSection>
+      <CustomProviderDialog
+        open={customProviderDialogOpen}
+        onOpenChange={setCustomProviderDialogOpen}
+        saveDisabledReason='Custom provider persistence endpoint is not available yet. Models loaded here are not saved.'
       />
     </SettingsPanel>
   )
