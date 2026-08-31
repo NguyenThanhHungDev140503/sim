@@ -112,11 +112,7 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    bun x turbo run build:sandbox-bundles
-
-RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
-    --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    cd apps/sim && bun run build:copy-contracts && NODE_OPTIONS="--max-old-space-size=4096" /usr/bin/node /app/node_modules/next/dist/bin/next build --no-lint
+    bun x turbo run build --filter=@sim/app --concurrency=1
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
 # before (and outside) the Next standalone server, so its dependencies
