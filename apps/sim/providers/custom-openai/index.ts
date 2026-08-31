@@ -521,7 +521,7 @@ export const customAnthropicProvider: ProviderConfig = {
       import('@anthropic-ai/sdk'),
       import('@/providers/anthropic/core'),
     ])
-    return executeAnthropicProviderRequest(request, {
+    return executeAnthropicProviderRequest({ ...request, apiKey }, {
       providerId: 'custom-anthropic',
       providerLabel: 'Custom Anthropic',
       resolveWireModel: ({ model }) => model.replace(/^custom-anthropic\//, ''),

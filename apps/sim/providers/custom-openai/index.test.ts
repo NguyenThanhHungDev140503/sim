@@ -228,6 +228,23 @@ describe('custom providers', () => {
     expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.8')
   })
 
+  it('passes env-only Anthropic API key into shared execution core', async () => {
+    process.env.CUSTOM_ANTHROPIC_BASE_URL = 'https://anthropic.example.com'
+    process.env.CUSTOM_ANTHROPIC_API_KEY = 'env-key'
+    mockExecuteAnthropicProviderRequest.mockResolvedValue({ content: 'ok' })
+
+    const request = {
+      model: 'custom-anthropic/model',
+      messages: [{ role: 'user' as const, content: 'hi' }],
+    }
+    await customAnthropicProvider.executeRequest(request)
+
+    expect(mockExecuteAnthropicProviderRequest).toHaveBeenCalledWith(
+      { ...request, apiKey: 'env-key' },
+      expect.any(Object)
+    )
+  })
+
   it('executes non-stream tool loop and preserves reasoning metadata', async () => {
     mockCreate
       .mockResolvedValueOnce({
