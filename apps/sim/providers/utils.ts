@@ -151,6 +151,8 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   vertex: buildProviderMetadata('vertex'),
   'azure-openai': buildProviderMetadata('azure-openai'),
   'azure-anthropic': buildProviderMetadata('azure-anthropic'),
+  'custom-openai': buildProviderMetadata('custom-openai'),
+  'custom-anthropic': buildProviderMetadata('custom-anthropic'),
   deepseek: buildProviderMetadata('deepseek'),
   xai: buildProviderMetadata('xai'),
   cerebras: buildProviderMetadata('cerebras'),
@@ -227,6 +229,8 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
         providerId !== 'fireworks' &&
         providerId !== 'together' &&
         providerId !== 'baseten'
+        && providerId !== 'custom-openai'
+        && providerId !== 'custom-anthropic'
     )
     .reduce(
       (map, [providerId, config]) => {

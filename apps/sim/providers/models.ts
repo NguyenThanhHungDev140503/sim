@@ -312,6 +312,26 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [],
   },
+  'custom-openai': {
+    id: 'custom-openai',
+    name: 'Custom OpenAI',
+    description: 'Custom OpenAI-compatible endpoint',
+    defaultModel: 'custom-openai/generic',
+    modelPatterns: [/^custom-openai\//],
+    color: '#10A37F',
+    capabilities: { temperature: { min: 0, max: 2 }, toolUsageControl: true },
+    models: [],
+  },
+  'custom-anthropic': {
+    id: 'custom-anthropic',
+    name: 'Custom Anthropic',
+    description: 'Custom Anthropic-compatible endpoint',
+    defaultModel: 'custom-anthropic/generic',
+    modelPatterns: [/^custom-anthropic\//],
+    color: '#D97757',
+    capabilities: { temperature: { min: 0, max: 1 }, toolUsageControl: true },
+    models: [],
+  },
   openai: {
     id: 'openai',
     /** "each file must be under 50 MB" — decimal MB; OpenAI writes no MiB anywhere on that page. */
@@ -4075,6 +4095,8 @@ export const DYNAMIC_MODEL_PROVIDERS = [
   'fireworks',
   'together',
   'baseten',
+  'custom-openai',
+  'custom-anthropic',
 ] as const
 
 function getAllStaticModelIds(): string[] {

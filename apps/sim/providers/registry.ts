@@ -5,6 +5,7 @@ import { azureOpenAIProvider } from '@/providers/azure-openai'
 import { basetenProvider } from '@/providers/baseten'
 import { bedrockProvider } from '@/providers/bedrock'
 import { cerebrasProvider } from '@/providers/cerebras'
+import { customAnthropicProvider, customOpenAIProvider } from '@/providers/custom-openai'
 import { deepseekProvider } from '@/providers/deepseek'
 import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
@@ -47,6 +48,8 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   litellm: litellmProvider,
   mistral: mistralProvider,
   'azure-openai': azureOpenAIProvider,
+  'custom-openai': customOpenAIProvider,
+  'custom-anthropic': customAnthropicProvider,
   openrouter: openRouterProvider,
   fireworks: fireworksProvider,
   together: togetherProvider,

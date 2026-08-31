@@ -26,6 +26,8 @@ export type ProviderId =
   | 'baseten'
   | 'vllm'
   | 'litellm'
+  | 'custom-openai'
+  | 'custom-anthropic'
   | 'bedrock'
 
 export interface ModelPricing {
@@ -195,6 +197,7 @@ export interface ProviderRequest {
   isCopilotRequest?: boolean
   isBYOK?: boolean
   azureEndpoint?: string
+  customEndpoint?: string
   azureApiVersion?: string
   vertexProject?: string
   vertexLocation?: string
