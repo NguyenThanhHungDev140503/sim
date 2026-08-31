@@ -25,6 +25,8 @@ export async function generateMetadata({
 
 export const revalidate = 86400
 
+export const dynamic = 'force-dynamic'
+
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const post = await getPostBySlug(slug)

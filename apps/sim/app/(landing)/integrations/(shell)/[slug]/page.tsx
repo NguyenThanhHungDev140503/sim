@@ -373,6 +373,8 @@ export async function generateMetadata({
   }
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function IntegrationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const integration = bySlug.get(slug)
