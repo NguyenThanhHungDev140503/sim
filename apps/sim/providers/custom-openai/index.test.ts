@@ -188,6 +188,22 @@ describe('custom providers', () => {
     })
   })
 
+  it('sends decoded model id for canonical provider-scoped custom model ids', async () => {
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+    })
+
+    await customOpenAIProvider.executeRequest({
+      model: 'custom-openai/provider-1/org%2Fmodel',
+      customEndpoint: 'https://custom.example.com/v1',
+      apiKey: 'request-key',
+      messages: [{ role: 'user', content: 'hi' }],
+    })
+
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ model: 'org/model' })
+  })
+
   it('allows localhost execution only when private endpoint opt-in is enabled', async () => {
     privateEndpointsAllowed.value = true
     mockCreate.mockResolvedValue({

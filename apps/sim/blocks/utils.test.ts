@@ -11,11 +11,19 @@ const {
   mockGetProviderModels,
   mockGetProviderIcon,
   mockGetBaseModelProviders,
+  mockGetModelSunsetStatus,
+  mockOrderModelIdsByReleaseDate,
+  mockOpenAIIcon,
+  mockAnthropicIcon,
 } = vi.hoisted(() => ({
   mockGetHostedModels: vi.fn(() => []),
   mockGetProviderModels: vi.fn(() => []),
   mockGetProviderIcon: vi.fn(() => null),
   mockGetBaseModelProviders: vi.fn(() => ({})),
+  mockGetModelSunsetStatus: vi.fn(() => undefined),
+  mockOrderModelIdsByReleaseDate: vi.fn((models: string[]) => models),
+  mockOpenAIIcon: vi.fn(),
+  mockAnthropicIcon: vi.fn(),
 }))
 
 const { mockProviders } = vi.hoisted(() => ({
@@ -27,7 +35,12 @@ const { mockProviders } = vi.hoisted(() => ({
       litellm: { models: [] as string[], isLoading: false },
       openrouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
+      together: { models: [] as string[], isLoading: false },
+      baseten: { models: [] as string[], isLoading: false },
+      'custom-openai': { models: [] as string[], isLoading: false },
+      'custom-anthropic': { models: [] as string[], isLoading: false },
     },
+    customProviderModels: {} as Record<string, { id: string; label: string; providerId: string }>,
   },
 }))
 
@@ -40,8 +53,16 @@ vi.mock('@/providers/models', () => ({
   getProviderModels: mockGetProviderModels,
   getProviderIcon: mockGetProviderIcon,
   getBaseModelProviders: mockGetBaseModelProviders,
+  getModelSunsetStatus: mockGetModelSunsetStatus,
+  orderModelIdsByReleaseDate: mockOrderModelIdsByReleaseDate,
   SIM_AUTO_MODEL_ID: 'sim-auto',
   isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
+}))
+
+vi.mock('@/components/icons', () => ({
+  AnthropicIcon: mockAnthropicIcon,
+  OpenAIIcon: mockOpenAIIcon,
+  SimAutoIcon: vi.fn(),
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -59,6 +80,9 @@ vi.mock('@/stores/providers/store', () => ({
       get providers() {
         return mockProviders.value
       },
+      get customProviderModels() {
+        return mockProviders.value.customProviderModels
+      },
     }),
   },
 }))
@@ -70,6 +94,7 @@ vi.mock('@/lib/oauth/utils', () => ({
 import {
   BUILT_IN_TOOL_TYPES,
   getApiKeyCondition,
+  getModelOptions,
   getSerializedModelProviderId,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
@@ -91,6 +116,43 @@ const BASE_CLOUD_MODELS: Record<string, string> = {
   'mistral-large-latest': 'mistral',
 }
 
+describe('getModelOptions custom providers', () => {
+  beforeEach(() => {
+    setEnvFlags({ isHosted: false })
+    mockProviders.value['custom-openai'].models = ['custom-openai/provider-1/model-a']
+    mockProviders.value['custom-anthropic'].models = [
+      'custom-anthropic/provider-2/model-b',
+    ]
+    mockProviders.value.customProviderModels = {
+      'custom-openai/provider-1/model-a': {
+        id: 'custom-openai/provider-1/model-a',
+        label: 'OpenAI Gateway / model-a',
+        providerId: 'custom-openai',
+      },
+      'custom-anthropic/provider-2/model-b': {
+        id: 'custom-anthropic/provider-2/model-b',
+        label: 'Anthropic Gateway / model-b',
+        providerId: 'custom-anthropic',
+      },
+    }
+  })
+
+  it('includes saved custom labels and protocol icons', () => {
+    expect(getModelOptions()).toEqual([
+      {
+        id: 'custom-openai/provider-1/model-a',
+        label: 'OpenAI Gateway / model-a',
+        icon: mockOpenAIIcon,
+      },
+      {
+        id: 'custom-anthropic/provider-2/model-b',
+        label: 'Anthropic Gateway / model-b',
+        icon: mockAnthropicIcon,
+      },
+    ])
+  })
+})
+
 describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
   const evaluateCondition = (model: string): boolean => {
     const conditionFn = getApiKeyCondition()
@@ -110,7 +172,12 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       litellm: { models: [], isLoading: false },
       openrouter: { models: [], isLoading: false },
       fireworks: { models: [], isLoading: false },
-    }
+      together: { models: [], isLoading: false },
+      baseten: { models: [], isLoading: false },
+      'custom-openai': { models: [], isLoading: false },
+      'custom-anthropic': { models: [], isLoading: false },
+      customProviderModels: {},
+    } as typeof mockProviders.value
     mockGetHostedModels.mockReturnValue([])
     mockGetProviderModels.mockReturnValue([])
     mockGetBaseModelProviders.mockReturnValue({})

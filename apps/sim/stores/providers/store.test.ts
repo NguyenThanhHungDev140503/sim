@@ -63,7 +63,7 @@ describe('providers store custom models', () => {
     useProvidersStore.getState().setCustomProviderModels([model])
 
     expect(useProvidersStore.getState().providers['custom-openai'].models).toEqual([
-      'custom-openai/local-model',
+      'custom-openai/provider-1/local-model',
     ])
     expect(useProvidersStore.getState().customProviderModels[model.id]).toEqual(model)
   })
