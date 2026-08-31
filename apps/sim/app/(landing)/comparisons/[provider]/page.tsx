@@ -24,7 +24,7 @@ import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 const baseUrl = SITE_URL
 
 export const revalidate = 3600
-export const dynamicParams = false
+export const dynamicParams = true
 
 export async function generateStaticParams() {
   return ALL_COMPETITORS.map((competitor) => ({ provider: competitor.id }))
