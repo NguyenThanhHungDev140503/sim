@@ -18,7 +18,9 @@ export async function generateStaticParams() {
   }))
 }
 
-export default async function Image({ params }: { params: Promise<{ provider: string }> }) {
+export const dynamic = 'force-dynamic'
+
+export default async function ProviderOgImage({ params }: { params: Promise<{ provider: string }> }) {
   const { provider: providerSlug } = await params
   const provider = getProviderBySlug(providerSlug)
 

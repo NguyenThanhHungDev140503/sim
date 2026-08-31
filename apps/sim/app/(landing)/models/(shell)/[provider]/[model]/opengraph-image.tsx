@@ -25,7 +25,9 @@ export async function generateStaticParams() {
   }))
 }
 
-export default async function Image({
+export const dynamic = 'force-dynamic'
+
+export default async function ModelOgImage({
   params,
 }: {
   params: Promise<{ provider: string; model: string }>
