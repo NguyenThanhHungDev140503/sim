@@ -11,6 +11,7 @@ const {
   mockFilterModelSafeWorkspaceFileAttachments,
   mockExecuteTool,
   mockUploadLargeFilesToProvider,
+  mockResolveCustomProviderForExecution,
 } = vi.hoisted(() => ({
   mockAttachLargeFileRemoteUrls: vi.fn(),
   mockGetApiKeyWithBYOK: vi.fn(),
@@ -18,10 +19,16 @@ const {
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
   mockExecuteTool: vi.fn(async () => ({ success: true, output: {} })),
   mockUploadLargeFilesToProvider: vi.fn(),
+  mockResolveCustomProviderForExecution: vi.fn(),
 }))
 
 vi.mock('@/lib/api-key/byok', () => ({
   getApiKeyWithBYOK: (...args: unknown[]) => mockGetApiKeyWithBYOK(...args),
+}))
+
+vi.mock('@/lib/custom-providers/application/custom-providers', () => ({
+  resolveCustomProviderForExecution: (...args: unknown[]) =>
+    mockResolveCustomProviderForExecution(...args),
 }))
 
 vi.mock('@/providers/registry', () => ({
@@ -192,6 +199,40 @@ describe('executeProviderRequest — tool identities', () => {
     )
     expect(event.value).toEqual({ type: 'tool_call_start', id: 'call-1', name: 'gmail_send' })
     expect(streaming.execution.output.toolCalls?.list[0].name).toBe('gmail_send')
+  })
+})
+
+describe('executeProviderRequest — saved custom providers', () => {
+  beforeEach(() => {
+    mockResolveCustomProviderForExecution.mockReset()
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'caller-key', isBYOK: false })
+    mockExecuteRequest.mockResolvedValue({ content: 'ok', model: 'custom-openai/p/model' })
+  })
+
+  it('maps saved endpoint and server-resolved key into execution without BYOK replacement', async () => {
+    mockResolveCustomProviderForExecution.mockResolvedValue({
+      endpoint: 'https://saved.example/v1',
+      apiKey: 'stored-secret',
+    })
+
+    await executeProviderRequest('custom-openai', {
+      model: 'custom-openai/provider-1/model-a',
+      workspaceId: 'workspace-1',
+      apiKey: undefined,
+    })
+
+    expect(mockResolveCustomProviderForExecution).toHaveBeenCalledWith({
+      model: 'custom-openai/provider-1/model-a',
+      providerId: 'custom-openai',
+      workspaceId: 'workspace-1',
+    })
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+    expect(mockExecuteRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customEndpoint: 'https://saved.example/v1',
+        apiKey: 'stored-secret',
+      })
+    )
   })
 })
 

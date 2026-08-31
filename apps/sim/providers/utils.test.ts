@@ -964,6 +964,13 @@ describe('Provider Management', () => {
       expect(getProviderFromModel('GPT-4O')).toBe('openai')
       expect(getProviderFromModel('CLAUDE-SONNET-4-0')).toBe('anthropic')
     })
+
+    it('should resolve canonical saved custom models regardless of casing or model slashes', () => {
+      expect(getProviderFromModel(' custom-openai/provider-1/org%2Fmodel ')).toBe('custom-openai')
+      expect(getProviderFromModel('CUSTOM-ANTHROPIC/provider-2/claude-3')).toBe(
+        'custom-anthropic'
+      )
+    })
   })
 
   describe('getProvider', () => {

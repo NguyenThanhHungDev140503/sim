@@ -35,6 +35,7 @@ import {
 } from '@/components/icons'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { ModelPricing, ProviderId } from '@/providers/types'
+import { normalizeModelKey, parseCustomModelId } from '@/providers/custom-model'
 
 /** How a model's thinking appears on the agent-events stream. */
 export type ThinkingStreamVisibility = 'full' | 'summary' | 'none'
@@ -4214,18 +4215,25 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
 }
 
 export function getProviderFromModel(model: string): ProviderId {
-  const normalizedModel = model.toLowerCase()
+  const normalizedModel = normalizeModelKey(model)
+  const customModel = parseCustomModelId(model)
+  if (customModel) return customModel.providerId
 
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (
-      provider.models.some((providerModel) => providerModel.id.toLowerCase() === normalizedModel)
+      provider.models.some((providerModel) => normalizeModelKey(providerModel.id) === normalizedModel)
     ) {
       return providerId as ProviderId
     }
   }
 
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
-    if (provider.modelPatterns?.some((pattern) => pattern.test(normalizedModel))) {
+    if (
+      provider.modelPatterns?.some((pattern) => {
+        pattern.lastIndex = 0
+        return pattern.test(normalizedModel)
+      })
+    ) {
       return providerId as ProviderId
     }
   }

@@ -57,6 +57,7 @@ import {
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
+import { normalizeModelKey, parseCustomModelId } from '@/providers/custom-model'
 import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/merge-params'
 import type { WorkflowToolExecutionContext } from '@/tools/types'
@@ -282,13 +283,16 @@ export function getAllModelProviders(): Record<string, ProviderId> {
  * that was never about it.
  */
 export function findProviderFromModel(model: string): ProviderId | null {
-  const normalizedModel = model.toLowerCase()
+  const normalizedModel = normalizeModelKey(model)
+  const customModel = parseCustomModelId(model)
+  if (customModel) return customModel.providerId
 
   const declared = getAllModelProviders()[normalizedModel]
   if (declared) return declared
 
   for (const [id, config] of Object.entries(providers)) {
     for (const pattern of config.modelPatterns ?? []) {
+      pattern.lastIndex = 0
       if (pattern.test(normalizedModel)) return id as ProviderId
     }
   }
@@ -297,7 +301,7 @@ export function findProviderFromModel(model: string): ProviderId | null {
 }
 
 export function getProviderFromModel(model: string): ProviderId {
-  const normalizedModel = model.toLowerCase()
+  const normalizedModel = normalizeModelKey(model)
 
   let providerId = findProviderFromModel(model)
 
@@ -318,7 +322,7 @@ export function getProviderFromModel(model: string): ProviderId {
 }
 
 export function getProvider(id: string): ProviderMetadata | undefined {
-  const providerId = id.split('/')[0] as ProviderId
+  const providerId = normalizeModelKey(id).split('/')[0] as ProviderId
   return providers[providerId]
 }
 

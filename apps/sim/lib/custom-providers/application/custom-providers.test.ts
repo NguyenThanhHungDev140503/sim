@@ -41,8 +41,10 @@ import {
   createCustomProvider,
   deleteCustomProvider,
   listCustomProviders,
+  resolveCustomProviderForExecution,
   updateCustomProvider,
 } from '@/lib/custom-providers/application/custom-providers'
+import { buildCustomModelId } from '@/providers/custom-model'
 
 const workspaceContext = {
   id: 'workspace-1',
@@ -142,5 +144,20 @@ describe('custom provider application CRUD', () => {
 
     expect(result).toEqual({ success: true, id: 'provider-1', name: 'Gateway' })
     expect(dbChainMockFns.delete).toHaveBeenCalled()
+  })
+
+  it('resolves saved endpoint and decrypts its key only for execution', async () => {
+    queueTableRows(customEndpointsTable, [providerRow])
+
+    const result = await resolveCustomProviderForExecution({
+      model: buildCustomModelId('custom-openai', 'provider-1', 'model-a'),
+      providerId: 'custom-openai',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(result).toEqual({
+      endpoint: 'https://example.com/v1',
+      apiKey: 'secret',
+    })
   })
 })

@@ -33,6 +33,7 @@ import {
 } from '@/providers/utils'
 import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { isPrivateCustomEndpointsAllowed } from '@/lib/core/config/env-flags'
+import { parseCustomModelId } from '@/providers/custom-model'
 
 const logger = createLogger('CustomOpenAIProvider')
 
@@ -141,7 +142,7 @@ function buildMessages(request: ProviderRequest): Message[] {
 
 function buildPayload(request: ProviderRequest, messages: Message[]) {
   const payload: Record<string, unknown> = {
-    model: request.model.replace(/^custom-openai\//, ''),
+    model: parseCustomModelId(request.model)?.modelId ?? request.model.replace(/^custom-openai\//i, ''),
     messages,
   }
   if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -561,7 +562,8 @@ export const customAnthropicProvider: ProviderConfig = {
     return executeAnthropicProviderRequest({ ...request, apiKey }, {
       providerId: 'custom-anthropic',
       providerLabel: 'Custom Anthropic',
-      resolveWireModel: ({ model }) => model.replace(/^custom-anthropic\//, ''),
+      resolveWireModel: ({ model }) =>
+        parseCustomModelId(model)?.modelId ?? model.replace(/^custom-anthropic\//i, ''),
       createClient: (key) =>
         getCachedProviderClient(`custom-anthropic::${key}::${endpoint}::${pinnedIP}`, () =>
           new Anthropic({ apiKey: key, baseURL: endpoint, fetch: pinnedFetch })

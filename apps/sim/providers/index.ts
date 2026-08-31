@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
+import { resolveCustomProviderForExecution } from '@/lib/custom-providers/application/custom-providers'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
 import {
@@ -183,14 +184,39 @@ export async function executeProviderRequest(
 
   let resolvedRequest = sanitizeRequest(request)
   let isBYOK = false
+  let savedCustomProviderResolved = false
 
-  if (request.workspaceId) {
+  if (
+    request.workspaceId &&
+    (providerId === 'custom-openai' || providerId === 'custom-anthropic')
+  ) {
+    const savedProvider = await resolveCustomProviderForExecution({
+      model: request.model,
+      providerId,
+      workspaceId: request.workspaceId,
+    })
+    if (savedProvider) {
+      savedCustomProviderResolved = true
+      resolvedRequest = {
+        ...resolvedRequest,
+        customEndpoint: savedProvider.endpoint,
+        ...(savedProvider.apiKey ? { apiKey: savedProvider.apiKey } : {}),
+      }
+      logger.info('Resolved saved custom provider', {
+        provider: providerId,
+        model: request.model,
+        workspaceId: request.workspaceId,
+      })
+    }
+  }
+
+  if (request.workspaceId && !savedCustomProviderResolved) {
     try {
       const result = await getApiKeyWithBYOK(
         providerId,
-        request.model,
+        resolvedRequest.model,
         request.workspaceId,
-        request.apiKey
+        resolvedRequest.apiKey
       )
       resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
       isBYOK = result.isBYOK

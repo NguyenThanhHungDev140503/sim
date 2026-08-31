@@ -8,6 +8,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateShortId } from '@sim/utils/id'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { customProviderOperations } from '@/lib/custom-providers/application/operations'
+import { normalizeModelKey, parseCustomModelId } from '@/providers/custom-model'
 
 export interface CustomProviderInput {
   workspaceId: string
@@ -47,6 +48,42 @@ async function getEndpoint(id: string, workspaceId: string) {
     .limit(1)
   if (!row) throw new OrchestrationError('not_found', 'Custom provider not found')
   return row
+}
+
+/**
+ * Resolves saved custom-provider connection details for an already-authorized
+ * workspace execution. Plaintext API keys stay inside server-side execution.
+ */
+export async function resolveCustomProviderForExecution(input: {
+  model: string
+  providerId: 'custom-openai' | 'custom-anthropic'
+  workspaceId: string
+}): Promise<{ apiKey?: string; endpoint: string } | null> {
+  const parsed = parseCustomModelId(input.model)
+  if (!parsed || parsed.providerId !== input.providerId || !parsed.customProviderId) return null
+
+  const [row] = await db
+    .select()
+    .from(workspaceCustomEndpoints)
+    .where(
+      and(
+        eq(workspaceCustomEndpoints.id, parsed.customProviderId),
+        eq(workspaceCustomEndpoints.workspaceId, input.workspaceId)
+      )
+    )
+    .limit(1)
+
+  if (!row) throw new OrchestrationError('not_found', 'Custom provider not found')
+  if (row.protocol !== (input.providerId === 'custom-anthropic' ? 'anthropic' : 'openai')) {
+    throw new OrchestrationError('validation', 'Custom provider protocol does not match model')
+  }
+  if (!row.models.some((model) => normalizeModelKey(model) === normalizeModelKey(parsed.modelId))) {
+    throw new OrchestrationError('validation', 'Model is not configured for custom provider')
+  }
+
+  if (!row.encryptedApiKey) return { endpoint: row.baseUrl }
+  const { decrypted } = await decryptSecret(row.encryptedApiKey)
+  return { apiKey: decrypted, endpoint: row.baseUrl }
 }
 
 export const listCustomProviders = defineAuthorizedWorkspaceUseCase({

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import type { CustomProvider } from '@/lib/api/contracts/custom-providers'
+import { buildCustomModelId } from '@/providers/custom-model'
 import { createCustomProviderModels, useProvidersStore } from '@/stores/providers/store'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -29,10 +30,10 @@ describe('providers store custom models', () => {
     })
   })
 
-  it('creates execution-compatible model IDs with endpoint metadata', () => {
+  it('creates collision-free execution-compatible model IDs with endpoint metadata', () => {
     expect(createCustomProviderModels([provider])).toEqual([
       {
-        id: 'custom-openai/local-model',
+        id: buildCustomModelId('custom-openai', 'provider-1', 'local-model'),
         label: 'Local Gateway / local-model',
         providerId: 'custom-openai',
         customProviderId: 'provider-1',
@@ -40,6 +41,20 @@ describe('providers store custom models', () => {
         endpoint: 'https://gateway.example/v1',
         hasApiKey: true,
       },
+    ])
+  })
+
+  it('keeps duplicate model ids distinct across saved providers', () => {
+    const providers: CustomProvider[] = [
+      provider,
+      { ...provider, id: 'provider-2', name: 'Second Gateway' },
+    ]
+
+    const models = createCustomProviderModels(providers)
+
+    expect(models.map(({ id }) => id)).toEqual([
+      'custom-openai/provider-1/local-model',
+      'custom-openai/provider-2/local-model',
     ])
   })
 

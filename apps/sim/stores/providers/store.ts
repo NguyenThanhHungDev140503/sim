@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import type { CustomProvider } from '@/lib/api/contracts/custom-providers'
+import { buildCustomModelId, normalizeModelKey } from '@/providers/custom-model'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { CustomProviderModel, OpenRouterModelInfo, ProvidersStore } from './types'
 
@@ -107,7 +108,8 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
   },
 
   getCustomProviderModel: (modelId: string) => {
-    return get().customProviderModels[modelId]
+    const models = get().customProviderModels
+    return models[modelId] ?? Object.values(models).find((model) => normalizeModelKey(model.id) === normalizeModelKey(modelId))
   },
 
   getOpenRouterModelInfo: (modelId: string) => {
@@ -119,8 +121,8 @@ export function createCustomProviderModels(providers: CustomProvider[]): CustomP
   return providers.flatMap((provider) => {
     const providerId = provider.protocol === 'anthropic' ? 'custom-anthropic' : 'custom-openai'
     return provider.models.map((model) => ({
-      id: model.startsWith(`${providerId}/`) ? model : `${providerId}/${model}`,
-      label: `${provider.name} / ${model}`,
+      id: buildCustomModelId(providerId, provider.id, model),
+      label: `${provider.name} / ${model.trim()}`,
       providerId,
       customProviderId: provider.id,
       customProviderName: provider.name,

@@ -15,8 +15,15 @@ const mocks = vi.hoisted(() => ({
     isFetching: false,
     error: null,
   })),
+  useCustomProviders: vi.fn(() => ({
+    data: undefined,
+    isLoading: false,
+    isFetching: false,
+    error: null,
+  })),
   setProviderModels: vi.fn(),
   setProviderLoading: vi.fn(),
+  setCustomProviderModels: vi.fn(),
   setOpenRouterModelInfo: vi.fn(),
 }))
 
@@ -31,6 +38,10 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/hooks/queries/providers', () => ({
   useProviderModels: mocks.useProviderModels,
+}))
+
+vi.mock('@/hooks/queries/custom-providers', () => ({
+  useCustomProviders: mocks.useCustomProviders,
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -54,12 +65,14 @@ vi.mock('@/stores/providers', () => ({
     selector: (state: {
       setProviderModels: typeof mocks.setProviderModels
       setProviderLoading: typeof mocks.setProviderLoading
+      setCustomProviderModels: typeof mocks.setCustomProviderModels
       setOpenRouterModelInfo: typeof mocks.setOpenRouterModelInfo
     }) => unknown
   ) =>
     selector({
       setProviderModels: mocks.setProviderModels,
       setProviderLoading: mocks.setProviderLoading,
+      setCustomProviderModels: mocks.setCustomProviderModels,
       setOpenRouterModelInfo: mocks.setOpenRouterModelInfo,
     }),
 }))
@@ -79,6 +92,10 @@ function expectEveryProviderEnabled(enabled: boolean) {
   for (const call of mocks.useProviderModels.mock.calls) {
     expect(call[2]).toEqual({ enabled })
   }
+}
+
+function expectCustomProviderEnabled(enabled: boolean) {
+  expect(mocks.useCustomProviders).toHaveBeenCalledWith('workspace-1', { enabled })
 }
 
 describe('ProviderModelsLoader request gating', () => {
@@ -102,6 +119,7 @@ describe('ProviderModelsLoader request gating', () => {
       renderLoader()
 
       expectEveryProviderEnabled(false)
+      expectCustomProviderEnabled(false)
     }
   )
 
@@ -112,6 +130,7 @@ describe('ProviderModelsLoader request gating', () => {
       renderLoader()
 
       expectEveryProviderEnabled(true)
+      expectCustomProviderEnabled(true)
     }
   )
 
@@ -120,6 +139,7 @@ describe('ProviderModelsLoader request gating', () => {
     renderLoader()
 
     expectEveryProviderEnabled(true)
+    expectCustomProviderEnabled(true)
   })
 
   it('does not create an empty-workspace route prefix', () => {
@@ -128,5 +148,6 @@ describe('ProviderModelsLoader request gating', () => {
     renderLoader()
 
     expectEveryProviderEnabled(false)
+    expect(mocks.useCustomProviders).toHaveBeenCalledWith(undefined, { enabled: false })
   })
 })

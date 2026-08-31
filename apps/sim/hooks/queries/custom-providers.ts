@@ -14,6 +14,9 @@ import {
 } from '@/lib/api/contracts/custom-providers'
 
 export const CUSTOM_PROVIDERS_STALE_TIME = 60 * 1000
+export const CUSTOM_PROVIDERS_QUERY_OPTIONS = {
+  staleTime: CUSTOM_PROVIDERS_STALE_TIME,
+} as const
 
 export const customProvidersKeys = {
   all: ['custom-providers'] as const,
@@ -35,13 +38,13 @@ export function useDiscoverCustomModels() {
   })
 }
 
-export function useCustomProviders(workspaceId?: string) {
+export function useCustomProviders(workspaceId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: customProvidersKeys.list(workspaceId),
     queryFn: ({ signal }): Promise<ListCustomProvidersResponse> =>
       requestJson(listCustomProvidersContract, { query: { workspaceId: workspaceId as string }, signal }),
-    enabled: Boolean(workspaceId),
-    staleTime: CUSTOM_PROVIDERS_STALE_TIME,
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    ...CUSTOM_PROVIDERS_QUERY_OPTIONS,
   })
 }
 

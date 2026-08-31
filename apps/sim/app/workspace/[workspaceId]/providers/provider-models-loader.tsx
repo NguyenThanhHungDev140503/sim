@@ -101,7 +101,7 @@ export function ProviderModelsLoader() {
   const shouldLoad = shouldLoadProviderModels(pathname, workspaceId, isSearchModalOpen)
   const setCustomProviderModels = useProvidersStore((state) => state.setCustomProviderModels)
   const setCustomProviderLoading = useProvidersStore((state) => state.setProviderLoading)
-  const customProviders = useCustomProviders(workspaceId)
+  const customProviders = useCustomProviders(workspaceId, { enabled: shouldLoad })
 
   useEffect(() => {
     setCustomProviderLoading(
