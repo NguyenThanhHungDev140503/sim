@@ -5,6 +5,8 @@ import type { ReactNode } from 'react'
  * footer, site-wide JSON-LD, scroll port); this layout only provides the
  * `<main>` landmark. Pages emit their own page-specific JSON-LD.
  */
+export const dynamic = 'force-dynamic'
+
 export default function ModelsLayout({ children }: { children: ReactNode }) {
   return <main id='main-content'>{children}</main>
 }
