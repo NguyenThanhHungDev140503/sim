@@ -3,7 +3,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { discoverCustomModelsContract } from '@/lib/api/contracts/custom-providers'
 import { parseRequest } from '@/lib/api/server'
+import { getSession } from '@/lib/auth'
 import { isPrivateCustomEndpointsAllowed } from '@/lib/core/config/env-flags'
+import { enforceUserRateLimit } from '@/lib/core/rate-limiter/route-helpers'
 import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
@@ -61,6 +63,14 @@ function failureResponse(error: string, status: number): NextResponse {
 }
 
 export const POST = withRouteHandler(async (request: NextRequest, context: unknown) => {
+  const session = await getSession()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rateLimited = await enforceUserRateLimit('custom-model-discovery', session.user.id)
+  if (rateLimited) return rateLimited
+
   const parsed = await parseRequest(discoverCustomModelsContract, request, context)
   if (!parsed.success) return parsed.response
 

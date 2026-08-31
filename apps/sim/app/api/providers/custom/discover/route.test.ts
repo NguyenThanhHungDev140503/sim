@@ -8,15 +8,27 @@ import {
   discoverCustomModelsResponseSchema,
 } from '@/lib/api/contracts/custom-providers'
 
-const { mockValidateUrlWithDNS, mockCreatePinnedFetch, mockPinnedFetch } = vi.hoisted(() => ({
+const {
+  mockValidateUrlWithDNS,
+  mockCreatePinnedFetch,
+  mockPinnedFetch,
+  mockGetSession,
+  mockEnforceUserRateLimit,
+} = vi.hoisted(() => ({
   mockValidateUrlWithDNS: vi.fn(),
   mockCreatePinnedFetch: vi.fn(),
   mockPinnedFetch: vi.fn(),
+  mockGetSession: vi.fn(),
+  mockEnforceUserRateLimit: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   createPinnedFetch: mockCreatePinnedFetch,
   validateUrlWithDNS: mockValidateUrlWithDNS,
+}))
+vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('@/lib/core/rate-limiter/route-helpers', () => ({
+  enforceUserRateLimit: mockEnforceUserRateLimit,
 }))
 
 import { POST } from './route'
@@ -70,6 +82,8 @@ describe('custom model discovery contracts', () => {
 describe('POST /api/providers/custom/discover', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockEnforceUserRateLimit.mockResolvedValue(null)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
     mockCreatePinnedFetch.mockReturnValue(mockPinnedFetch)
     mockPinnedFetch.mockResolvedValue(
@@ -245,5 +259,41 @@ describe('POST /api/providers/custom/discover', () => {
       }
     )
     expect(mockPinnedFetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects URL query strings and fragments before upstream fetch', async () => {
+    const queryResponse = await POST(
+      request({ baseUrl: 'https://api.example.com/v1?tenant=secret', protocol: 'anthropic' }),
+      {}
+    )
+    expect(queryResponse.status).toBe(400)
+    expect(mockPinnedFetch).not.toHaveBeenCalled()
+
+    const fragmentResponse = await POST(
+      request({ baseUrl: 'https://api.example.com/v1#models', protocol: 'anthropic' }),
+      {}
+    )
+    expect(fragmentResponse.status).toBe(400)
+    expect(mockPinnedFetch).not.toHaveBeenCalled()
+  })
+
+  it('requires an authenticated session and applies user rate limiting', async () => {
+    mockGetSession.mockResolvedValueOnce(null)
+    const unauthorizedResponse = await POST(
+      request({ baseUrl: 'https://api.example.com/v1', protocol: 'openai' }),
+      {}
+    )
+    expect(unauthorizedResponse.status).toBe(401)
+
+    mockEnforceUserRateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
+    const limitedResponse = await POST(
+      request({ baseUrl: 'https://api.example.com/v1', protocol: 'openai' }),
+      {}
+    )
+    expect(limitedResponse.status).toBe(429)
+    expect(mockEnforceUserRateLimit).toHaveBeenCalledWith(
+      'custom-model-discovery',
+      'user-1'
+    )
   })
 })

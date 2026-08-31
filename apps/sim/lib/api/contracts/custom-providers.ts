@@ -6,7 +6,14 @@ export const discoverCustomModelsBodySchema = z.object({
     .string()
     .trim()
     .min(1, 'Base URL is required')
-    .url('Base URL must be a valid URL'),
+    .url('Base URL must be a valid URL')
+    .refine(
+      (value) => {
+        const url = new URL(value)
+        return !url.search && !url.hash
+      },
+      'Base URL must not include query parameters or fragments'
+    ),
   apiKey: z.string().optional(),
   protocol: z.enum(['openai', 'anthropic']).default('openai'),
 })
