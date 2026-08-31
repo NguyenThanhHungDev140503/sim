@@ -25,10 +25,7 @@ const baseUrl = SITE_URL
 
 export const revalidate = 3600
 export const dynamicParams = true
-
-export async function generateStaticParams() {
-  return ALL_COMPETITORS.map((competitor) => ({ provider: competitor.id }))
-}
+export const dynamic = 'force-dynamic'
 
 /** Flattens a profile's facts into JSON-LD `additionalProperty` entries, in {@link COMPARISON_SECTIONS} order. */
 function factsToProperties(profile: CompetitorProfile) {

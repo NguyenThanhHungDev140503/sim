@@ -308,10 +308,6 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
   return faqs
 }
 
-export async function generateStaticParams() {
-  return allIntegrations.map((i) => ({ slug: i.slug }))
-}
-
 export async function generateMetadata({
   params,
 }: {

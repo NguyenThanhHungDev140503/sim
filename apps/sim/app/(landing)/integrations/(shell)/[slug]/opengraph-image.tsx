@@ -17,13 +17,6 @@ const bySlug = new Map(integrations.map((i) => [i.slug, i]))
  * share generateStaticParams between a page and its sibling metadata
  * routes, so without this export every integration's OG image 404s.
  */
-export async function generateStaticParams() {
-  return integrations.map((integration) => ({ slug: integration.slug }))
-}
-
-export const dynamicParams = true
-export const dynamic = 'force-dynamic'
-
 export default async function IntegrationOgImage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const integration = bySlug.get(slug)

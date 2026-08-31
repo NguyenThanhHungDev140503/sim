@@ -6,25 +6,6 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { ContentPostPage } from '@/app/(landing)/components'
 
 export const dynamicParams = true
-
-export async function generateStaticParams() {
-  const posts = await getAllPostMeta()
-  return posts.map((p) => ({ slug: p.slug }))
-}
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>
-}): Promise<Metadata> {
-  const { slug } = await params
-  const post = await getPostBySlug(slug)
-  if (!post) return {}
-  return buildPostMetadata(post)
-}
-
-export const revalidate = 86400
-
 export const dynamic = 'force-dynamic'
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
