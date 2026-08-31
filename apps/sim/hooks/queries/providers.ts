@@ -17,7 +17,9 @@ import {
 } from '@/lib/api/contracts/providers'
 import type { ProviderName } from '@/stores/providers'
 
-type ProviderModelSource = ProviderName | 'openrouter-embeddings'
+type ProviderModelSource =
+  | Exclude<ProviderName, 'custom-openai' | 'custom-anthropic'>
+  | 'openrouter-embeddings'
 
 interface UseProviderModelsOptions {
   enabled?: boolean

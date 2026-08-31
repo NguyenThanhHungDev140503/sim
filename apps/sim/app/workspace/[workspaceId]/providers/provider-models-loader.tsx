@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, usePathname } from 'next/navigation'
+import { useCustomProviders } from '@/hooks/queries/custom-providers'
 import { useProviderModels } from '@/hooks/queries/providers'
 import {
   updateBasetenProviderModels,
@@ -15,7 +16,11 @@ import {
   updateVLLMProviderModels,
 } from '@/providers/utils'
 import { useSearchModalStore } from '@/stores/modals/search/store'
-import { type ProviderName, useProvidersStore } from '@/stores/providers'
+import {
+  createCustomProviderModels,
+  type ProviderName,
+  useProvidersStore,
+} from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsLoader')
 
@@ -94,6 +99,36 @@ export function ProviderModelsLoader() {
   const workspaceId = params?.workspaceId as string | undefined
   const isSearchModalOpen = useSearchModalStore((state) => state.isOpen)
   const shouldLoad = shouldLoadProviderModels(pathname, workspaceId, isSearchModalOpen)
+  const setCustomProviderModels = useProvidersStore((state) => state.setCustomProviderModels)
+  const setCustomProviderLoading = useProvidersStore((state) => state.setProviderLoading)
+  const customProviders = useCustomProviders(workspaceId)
+
+  useEffect(() => {
+    setCustomProviderLoading(
+      'custom-openai',
+      shouldLoad && (customProviders.isLoading || customProviders.isFetching)
+    )
+    setCustomProviderLoading(
+      'custom-anthropic',
+      shouldLoad && (customProviders.isLoading || customProviders.isFetching)
+    )
+  }, [
+    customProviders.isFetching,
+    customProviders.isLoading,
+    setCustomProviderLoading,
+    shouldLoad,
+  ])
+
+  useEffect(() => {
+    if (!customProviders.data) return
+    setCustomProviderModels(createCustomProviderModels(customProviders.data.providers))
+  }, [customProviders.data, setCustomProviderModels])
+
+  useEffect(() => {
+    if (customProviders.error) {
+      logger.error('Failed to load custom provider models', customProviders.error)
+    }
+  }, [customProviders.error])
 
   useSyncProvider('base', shouldLoad)
   useSyncProvider('ollama', shouldLoad)

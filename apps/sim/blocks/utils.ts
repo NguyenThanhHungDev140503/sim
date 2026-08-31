@@ -1,5 +1,5 @@
 import { toError } from '@sim/utils/errors'
-import { SimAutoIcon } from '@/components/icons'
+import { AnthropicIcon, OpenAIIcon, SimAutoIcon } from '@/components/icons'
 import {
   isAzureConfigured,
   isCohereConfigured,
@@ -66,6 +66,9 @@ export function getModelOptions() {
   const fireworksModels = providersState.providers.fireworks.models
   const togetherModels = providersState.providers.together.models
   const basetenModels = providersState.providers.baseten.models
+  const customProviderModels = providersState.customProviderModels ?? {}
+  const customOpenAIModels = providersState.providers['custom-openai']?.models ?? []
+  const customAnthropicModels = providersState.providers['custom-anthropic']?.models ?? []
   const allModels = Array.from(
     new Set([
       ...baseModels,
@@ -77,6 +80,8 @@ export function getModelOptions() {
       ...fireworksModels,
       ...togetherModels,
       ...basetenModels,
+      ...customOpenAIModels,
+      ...customAnthropicModels,
     ])
   )
 
@@ -84,7 +89,14 @@ export function getModelOptions() {
     .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
     .map((model) => {
       const icon = getProviderIcon(model)
-      return { label: model, id: model, ...(icon && { icon }) }
+      const customModel = customProviderModels[model]
+      const customIcon =
+        customModel?.providerId === 'custom-anthropic' ? AnthropicIcon : OpenAIIcon
+      return {
+        label: customModel?.label ?? model,
+        id: model,
+        ...(customModel ? { icon: customIcon } : icon ? { icon } : {}),
+      }
     })
 
   // Hosted-only automatic model. Deliberately LAST in the list (limited
