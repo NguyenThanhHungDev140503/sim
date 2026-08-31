@@ -11,6 +11,7 @@ const {
   mockCreateStreamingToolLoop,
   mockExecuteAnthropicProviderRequest,
   openAIArgs,
+  privateEndpointsAllowed,
 } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockCreateStreamingToolLoop: vi.fn(),
   mockExecuteAnthropicProviderRequest: vi.fn(),
   openAIArgs: [] as Record<string, unknown>[],
+  privateEndpointsAllowed: { value: false },
 }))
 
 vi.mock('openai', () => ({
@@ -35,7 +37,9 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   createPinnedFetch: mockCreatePinnedFetch,
 }))
 vi.mock('@/lib/core/config/env-flags', () => ({
-  isPrivateCustomEndpointsAllowed: false,
+  get isPrivateCustomEndpointsAllowed() {
+    return privateEndpointsAllowed.value
+  },
 }))
 vi.mock('@/providers/client-cache', () => ({
   getCachedProviderClient: vi.fn((_key, create) => create()),
@@ -126,6 +130,7 @@ describe('custom providers', () => {
     mockCreateStreamingToolLoop.mockReset()
     mockExecuteAnthropicProviderRequest.mockReset()
     openAIArgs.length = 0
+    privateEndpointsAllowed.value = false
     delete process.env.CUSTOM_OPENAI_BASE_URL
     delete process.env.CUSTOM_ANTHROPIC_BASE_URL
     delete process.env.CUSTOM_ANTHROPIC_API_KEY
@@ -181,6 +186,27 @@ describe('custom providers', () => {
       apiKey: 'request-key',
       baseURL: 'https://env.example.com/v1',
     })
+  })
+
+  it('allows localhost execution only when private endpoint opt-in is enabled', async () => {
+    privateEndpointsAllowed.value = true
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    })
+
+    await customOpenAIProvider.executeRequest({
+      model: 'custom-openai/model',
+      customEndpoint: 'http://127.0.0.1:8000',
+      apiKey: 'key',
+      messages: [{ role: 'user', content: 'hi' }],
+    })
+
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'http://127.0.0.1:8000',
+      'custom OpenAI endpoint',
+      { allowHttp: true, allowLocalhost: true, allowPrivate: true }
+    )
   })
 
   it('rejects custom endpoint when DNS validation fails', async () => {
@@ -240,6 +266,24 @@ describe('custom providers', () => {
       { allowHttp: true }
     )
     expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.8')
+  })
+
+  it('allows localhost Anthropic execution only with private endpoint opt-in', async () => {
+    privateEndpointsAllowed.value = true
+    mockExecuteAnthropicProviderRequest.mockResolvedValue({ content: 'ok' })
+
+    await customAnthropicProvider.executeRequest({
+      model: 'custom-anthropic/model',
+      customEndpoint: 'http://127.0.0.1:8000',
+      apiKey: 'key',
+      messages: [{ role: 'user', content: 'hi' }],
+    })
+
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'http://127.0.0.1:8000',
+      'custom Anthropic endpoint',
+      { allowHttp: true, allowLocalhost: true, allowPrivate: true }
+    )
   })
 
   it('passes env-only Anthropic API key into shared execution core', async () => {
@@ -408,5 +452,6 @@ describe('custom providers', () => {
     const synthesisPayload = mockCreate.mock.calls[4][0]
     expect(synthesisPayload.tools).toBeUndefined()
     expect(synthesisPayload.tool_choice).toBeUndefined()
+    expect((result as { timing: { iterations: number } }).timing.iterations).toBe(5)
   })
 })

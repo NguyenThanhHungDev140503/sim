@@ -203,6 +203,7 @@ async function executeNonStreamingRequest(
   let response: Completion
   let content = ''
   let iterations = 0
+  let synthesizedAfterToolLimit = false
   let usedForcedTools: string[] = []
   let nextToolChoice = payload.tool_choice
 
@@ -355,6 +356,7 @@ async function executeNonStreamingRequest(
     }
 
     if (iterations >= MAX_TOOL_ITERATIONS && response.choices[0]?.message?.tool_calls?.length) {
+      synthesizedAfterToolLimit = true
       const synthesisStart = Date.now()
       const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
       response = normalizeCustomOpenAIFinishReason(
@@ -406,7 +408,7 @@ async function executeNonStreamingRequest(
       startTime: startedISO,
       endTime: new Date().toISOString(),
       duration: Date.now() - startedAt,
-      iterations: iterations + 1,
+      iterations: iterations + 1 + (synthesizedAfterToolLimit ? 1 : 0),
       timeSegments,
     },
     cost: {
