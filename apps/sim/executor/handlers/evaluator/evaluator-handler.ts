@@ -202,6 +202,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: finalApiKey,
+        customEndpoint: inputs.customEndpoint,
         azureEndpoint: inputs.azureEndpoint,
         azureApiVersion: inputs.azureApiVersion,
         vertexProject: evaluatorConfig.vertexProject,

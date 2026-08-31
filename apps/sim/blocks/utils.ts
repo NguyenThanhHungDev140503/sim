@@ -30,6 +30,7 @@ export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
   ...getProviderModels('azure-anthropic'),
 ]
+const CUSTOM_MODEL_PREFIXES = ['custom-openai/', 'custom-anthropic/'] as const
 
 /**
  * Standard subblocks for Google service account impersonation.
@@ -321,6 +322,20 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       condition: getApiKeyCondition(),
     },
     {
+      id: 'customEndpoint',
+      title: 'API Base URL',
+      type: 'short-input',
+      placeholder: 'https://api.your-llm.com/v1 or http://localhost:8000/v1',
+      connectionDroppable: false,
+      condition: (values?: Record<string, unknown>) => {
+        const model = typeof values?.model === 'string' ? values.model.trim().toLowerCase() : ''
+        return {
+          field: 'model',
+          value: CUSTOM_MODEL_PREFIXES.some((prefix) => model.startsWith(prefix)),
+        }
+      },
+    },
+    {
       id: 'azureEndpoint',
       title: 'Azure Endpoint',
       type: 'short-input',
@@ -418,6 +433,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
  */
 export const PROVIDER_CREDENTIAL_INPUTS = {
   apiKey: { type: 'string', description: 'Provider API key' },
+  customEndpoint: { type: 'string', description: 'Custom OpenAI/Anthropic-compatible API base URL' },
   azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
   azureApiVersion: { type: 'string', description: 'Azure API version' },
   vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },

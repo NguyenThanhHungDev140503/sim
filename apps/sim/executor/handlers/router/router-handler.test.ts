@@ -558,6 +558,26 @@ describe('RouterBlockHandler', () => {
     })
   })
 
+  it('should forward custom endpoint for custom OpenAI models', async () => {
+    const inputs = {
+      prompt: 'Choose the best option.',
+      model: 'custom-openai/router-model',
+      apiKey: 'test-custom-key',
+      customEndpoint: 'https://custom.example.com/v1',
+    }
+
+    mockGetProviderFromModel.mockReturnValue('custom-openai')
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(providerRequestBody()).toMatchObject({
+      provider: 'custom-openai',
+      model: 'custom-openai/router-model',
+      apiKey: 'test-custom-key',
+      customEndpoint: 'https://custom.example.com/v1',
+    })
+  })
+
   it('should handle Vertex AI models with OAuth credential', async () => {
     const inputs = {
       prompt: 'Choose the best option.',

@@ -740,6 +740,41 @@ describe('EvaluatorBlockHandler', () => {
     })
   })
 
+  it('should forward custom endpoint for custom Anthropic models', async () => {
+    const inputs = {
+      content: 'Test content to evaluate',
+      metrics: [
+        {
+          name: 'quality',
+          description: 'Quality score',
+          range: { min: 1, max: 10 },
+        },
+      ],
+      model: 'custom-anthropic/evaluator-model',
+      apiKey: 'test-custom-key',
+      customEndpoint: 'https://custom.example.com/v1',
+    }
+
+    mockGetProviderFromModel.mockReturnValue('custom-anthropic')
+
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: JSON.stringify({ quality: 8 }),
+      model: 'custom-anthropic/evaluator-model',
+      tokens: {},
+      cost: 0,
+      timing: {},
+    })
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(providerRequestBody()).toMatchObject({
+      provider: 'custom-anthropic',
+      model: 'custom-anthropic/evaluator-model',
+      apiKey: 'test-custom-key',
+      customEndpoint: 'https://custom.example.com/v1',
+    })
+  })
+
   it('should handle Vertex AI models with OAuth credential', async () => {
     const inputs = {
       content: 'Test content to evaluate',

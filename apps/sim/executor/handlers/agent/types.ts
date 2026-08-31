@@ -28,6 +28,7 @@ export interface AgentInputs {
   temperature?: string
   maxTokens?: string
   apiKey?: string
+  customEndpoint?: string
   azureEndpoint?: string
   azureApiVersion?: string
   vertexProject?: string

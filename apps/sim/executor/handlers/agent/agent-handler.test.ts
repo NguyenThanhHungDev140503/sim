@@ -2968,6 +2968,28 @@ describe('AgentBlockHandler', () => {
       expect(requestBody.apiKey).toBe('test-azure-api-key')
     })
 
+    it('should pass custom endpoint parameters through the request pipeline', async () => {
+      const inputs = {
+        model: 'custom-openai/my-model',
+        systemPrompt: 'You are a helpful assistant.',
+        userPrompt: 'Hello!',
+        apiKey: 'test-custom-api-key',
+        customEndpoint: 'https://custom.example.com/v1',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('custom-openai')
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      const providerCall = mockExecuteProviderRequest.mock.calls[0]
+      const requestBody = providerCall[1]
+
+      expect(providerCall[0]).toBe('custom-openai')
+      expect(requestBody.model).toBe('custom-openai/my-model')
+      expect(requestBody.customEndpoint).toBe('https://custom.example.com/v1')
+      expect(requestBody.apiKey).toBe('test-custom-api-key')
+    })
+
     it('should pass GPT-5 specific parameters (reasoningEffort and verbosity) through the request pipeline', async () => {
       const inputs = {
         model: 'gpt-5',

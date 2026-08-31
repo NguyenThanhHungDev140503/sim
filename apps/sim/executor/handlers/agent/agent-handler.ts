@@ -110,6 +110,7 @@ const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] =
   ['temperature'],
   ['maxTokens'],
   ['apiKey'],
+  ['customEndpoint'],
   ['azureEndpoint'],
   ['azureApiVersion'],
   ['vertexProject'],
@@ -2428,6 +2429,7 @@ export class AgentBlockHandler implements BlockHandler {
       maxTokens:
         inputs.maxTokens != null && inputs.maxTokens !== '' ? Number(inputs.maxTokens) : undefined,
       apiKey: inputs.apiKey,
+      customEndpoint: inputs.customEndpoint,
       azureEndpoint: inputs.azureEndpoint,
       azureApiVersion: inputs.azureApiVersion,
       vertexProject: inputs.vertexProject,
@@ -2511,6 +2513,7 @@ export class AgentBlockHandler implements BlockHandler {
           temperature: providerRequest.temperature,
           maxTokens: providerRequest.maxTokens,
           apiKey: finalApiKey,
+          customEndpoint: providerRequest.customEndpoint,
           azureEndpoint: providerRequest.azureEndpoint,
           azureApiVersion: providerRequest.azureApiVersion,
           vertexProject: providerRequest.vertexProject,
