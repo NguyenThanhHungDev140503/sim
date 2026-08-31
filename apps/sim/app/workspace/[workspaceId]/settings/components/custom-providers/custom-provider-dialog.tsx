@@ -146,7 +146,7 @@ export function CustomProviderDialog({
                 onClick={handleAddManualModel}
                 disabled={!manualModel.trim() || discoverModels.isPending}
               >
-                Add Custom Model
+                + Add Custom Model
               </Button>
             </div>
           </div>

@@ -103,6 +103,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: unkno
       if (apiKey) headers.Authorization = `Bearer ${apiKey}`
     }
 
+    /**
+     * Supported exception: this route probes a user-supplied external provider
+     * URL. `fetchImpl` is DNS-pinned by `validateUrlWithDNS`; `requestJson` and
+     * the internal JSON builder cannot represent this external-origin probe as
+     * a persisted workspace application operation.
+     */
     const response = await fetchImpl(modelsUrl, {
       headers,
       signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),

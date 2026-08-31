@@ -586,7 +586,7 @@ export function BYOK() {
         }}
       />
       <SettingsSection
-        label='Custom AI endpoints'
+        label='Custom AI Endpoints (OpenAI / Anthropic Compatible)'
         action={
           <Button
             variant='primary'
@@ -596,7 +596,7 @@ export function BYOK() {
             }}
             disabled={!canManageWorkspace}
           >
-            Add Custom Provider
+            + Add Custom Provider
           </Button>
         }
       >
