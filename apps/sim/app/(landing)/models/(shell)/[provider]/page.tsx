@@ -78,7 +78,7 @@ export default async function ProviderModelsPage({
   const { provider: providerSlug } = await params
   const provider = getProviderBySlug(providerSlug)
 
-  if (!provider || provider.models.length === 0) {
+  if (!provider) {
     notFound()
   }
 
