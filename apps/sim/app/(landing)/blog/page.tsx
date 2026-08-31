@@ -19,6 +19,8 @@ export async function generateMetadata({
   return buildIndexMetadata({ tag, pageNum })
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function BlogIndex({
   searchParams,
 }: {
