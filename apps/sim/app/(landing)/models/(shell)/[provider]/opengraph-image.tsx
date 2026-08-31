@@ -8,7 +8,7 @@ export const contentType = 'image/png'
 export const size = COVER_OG_SIZE
 
 export async function generateStaticParams() {
-  return MODEL_CATALOG_PROVIDERS.map((provider) => ({
+  return MODEL_CATALOG_PROVIDERS.filter((provider) => provider.models.length > 0).map((provider) => ({
     provider: provider.slug,
   }))
 }
