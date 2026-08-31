@@ -25,12 +25,7 @@ const baseUrl = SITE_URL
 
 export const dynamicParams = true
 
-export async function generateStaticParams() {
-  return ALL_CATALOG_MODELS.map((model) => ({
-    provider: model.providerSlug,
-    model: model.slug,
-  }))
-}
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({
   params,
