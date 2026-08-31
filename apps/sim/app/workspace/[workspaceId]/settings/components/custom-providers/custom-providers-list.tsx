@@ -17,6 +17,7 @@ interface CustomProvidersListProps {
   providers?: CustomProvider[]
   onEditProvider?: (provider: CustomProvider) => void
   onDeleteProvider?: (provider: CustomProvider) => void
+  error?: string | null
 }
 
 export function CustomProvidersList({
@@ -27,6 +28,7 @@ export function CustomProvidersList({
   providers,
   onEditProvider,
   onDeleteProvider,
+  error,
 }: CustomProvidersListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const filteredModels = useMemo(() => {
@@ -39,6 +41,13 @@ export function CustomProvidersList({
   }, [models, searchTerm])
 
   if (providers) {
+    if (error) {
+      return (
+        <p className='text-[var(--text-error)] text-sm' role='alert'>
+          {error}
+        </p>
+      )
+    }
     if (providers.length === 0) {
       return <SettingsEmptyState variant='inline'>No custom providers saved.</SettingsEmptyState>
     }
@@ -92,7 +101,11 @@ export function CustomProvidersList({
         <ChipTag variant='gray'>{selectedModelIds.size} selected</ChipTag>
       </div>
 
-      {models.length === 0 ? (
+      {error ? (
+        <p className='text-[var(--text-error)] text-sm' role='alert'>
+          {error}
+        </p>
+      ) : models.length === 0 ? (
         <SettingsEmptyState variant='inline'>Load models to choose which ones to enable.</SettingsEmptyState>
       ) : filteredModels.length === 0 ? (
         <SettingsEmptyState variant='inline'>

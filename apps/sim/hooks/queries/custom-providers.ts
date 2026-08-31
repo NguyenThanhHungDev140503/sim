@@ -13,6 +13,8 @@ import {
   type DiscoverCustomModelsResponse,
 } from '@/lib/api/contracts/custom-providers'
 
+export const CUSTOM_PROVIDERS_STALE_TIME = 60 * 1000
+
 export const customProvidersKeys = {
   all: ['custom-providers'] as const,
   discoveries: () => [...customProvidersKeys.all, 'discovery'] as const,
@@ -39,7 +41,7 @@ export function useCustomProviders(workspaceId?: string) {
     queryFn: ({ signal }): Promise<ListCustomProvidersResponse> =>
       requestJson(listCustomProvidersContract, { query: { workspaceId: workspaceId as string }, signal }),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: CUSTOM_PROVIDERS_STALE_TIME,
   })
 }
 

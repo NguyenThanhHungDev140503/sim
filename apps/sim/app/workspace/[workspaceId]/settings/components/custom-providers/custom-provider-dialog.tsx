@@ -26,6 +26,7 @@ interface CustomProviderDialogProps {
   onOpenChange: (open: boolean) => void
   provider?: CustomProvider
   canSaveProvider: boolean
+  isSaving?: boolean
   onSaveProvider: (input: DiscoverCustomModelsInput & { name: string; models: string[]; id?: string }) => Promise<void>
 }
 
@@ -39,6 +40,7 @@ export function CustomProviderDialog({
   onOpenChange,
   provider,
   canSaveProvider,
+  isSaving = false,
   onSaveProvider,
 }: CustomProviderDialogProps) {
   const [name, setName] = useState(provider?.name ?? '')
@@ -56,7 +58,7 @@ export function CustomProviderDialog({
   const discoverModels = useDiscoverCustomModels()
 
   const close = () => {
-    if (discoverModels.isPending) return
+    if (discoverModels.isPending || isSaving) return
     onOpenChange(false)
   }
 
@@ -123,7 +125,7 @@ export function CustomProviderDialog({
             <Button
               variant='secondary'
               onClick={handleLoadModels}
-              disabled={!baseUrl.trim() || discoverModels.isPending}
+              disabled={!baseUrl.trim() || discoverModels.isPending || isSaving}
             >
               {discoverModels.isPending ? 'Loading Models...' : 'Load Models'}
             </Button>
@@ -131,7 +133,7 @@ export function CustomProviderDialog({
               models={models}
               selectedModelIds={selectedModelIds}
               onSelectedModelIdsChange={setSelectedModelIds}
-              disabled={discoverModels.isPending}
+              disabled={discoverModels.isPending || isSaving}
             />
             <div className='flex gap-2'>
               <ChipInput
@@ -139,12 +141,12 @@ export function CustomProviderDialog({
                 onChange={(event) => setManualModel(event.target.value)}
                 placeholder='Add model ID manually'
                 className='flex-1'
-                disabled={discoverModels.isPending}
+                disabled={discoverModels.isPending || isSaving}
               />
               <Button
                 variant='secondary'
                 onClick={handleAddManualModel}
-                disabled={!manualModel.trim() || discoverModels.isPending}
+                disabled={!manualModel.trim() || discoverModels.isPending || isSaving}
               >
                 + Add Custom Model
               </Button>
@@ -155,7 +157,7 @@ export function CustomProviderDialog({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={close}
-        cancelDisabled={discoverModels.isPending}
+        cancelDisabled={discoverModels.isPending || isSaving}
         primaryAction={{
           label: provider ? 'Update Provider' : 'Save Provider',
           onClick: handleSave,
@@ -164,7 +166,8 @@ export function CustomProviderDialog({
             !name.trim() ||
             !baseUrl.trim() ||
             selectedModelIds.size === 0 ||
-            discoverModels.isPending,
+            discoverModels.isPending ||
+            isSaving,
         }}
       />
     </ChipModal>

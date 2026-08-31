@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { Button, ChipTag } from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
@@ -343,6 +345,8 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
   },
 ]
 
+const logger = createLogger('BYOKCustomProviders')
+
 /**
  * Provider groupings rendered as labeled sections. Every provider id in
  * {@link PROVIDERS} belongs to exactly one section; rows keep their
@@ -420,6 +424,7 @@ export function BYOK() {
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [customProviderDialogOpen, setCustomProviderDialogOpen] = useState(false)
   const [editingCustomProvider, setEditingCustomProvider] = useState<CustomProvider | undefined>()
+  const [customProviderError, setCustomProviderError] = useState<string | null>(null)
   const effectiveScope =
     requestedScope === 'organization' && canSelectOrganization ? 'organization' : 'workspace'
   const isOrganizationScope = effectiveScope === 'organization'
@@ -440,6 +445,8 @@ export function BYOK() {
   const createCustomProvider = useCreateCustomProvider()
   const updateCustomProvider = useUpdateCustomProvider()
   const deleteCustomProvider = useDeleteCustomProvider()
+  const isSavingCustomProvider =
+    createCustomProvider.isPending || updateCustomProvider.isPending
 
   const activeKeys = isOrganizationScope ? organizationKeys.data?.keys : workspaceKeys.data?.keys
   const isLoading = isOrganizationScope ? organizationKeys.isLoading : workspaceKeys.isLoading
@@ -592,6 +599,7 @@ export function BYOK() {
             variant='primary'
             onClick={() => {
               setEditingCustomProvider(undefined)
+              setCustomProviderError(null)
               setCustomProviderDialogOpen(true)
             }}
             disabled={!canManageWorkspace}
@@ -606,14 +614,32 @@ export function BYOK() {
           </p>
           <CustomProvidersList
             providers={customProviders.data?.providers ?? []}
-            disabled={customProviders.isLoading || deleteCustomProvider.isPending}
+            disabled={
+              customProviders.isLoading ||
+              deleteCustomProvider.isPending ||
+              isSavingCustomProvider
+            }
+            error={
+              customProviderError ??
+              (customProviders.error
+                ? getErrorMessage(customProviders.error, 'Failed to load custom providers')
+                : null)
+            }
             onEditProvider={(provider) => {
+              setCustomProviderError(null)
               setEditingCustomProvider(provider)
               setCustomProviderDialogOpen(true)
             }}
             onDeleteProvider={(provider) => {
               if (window.confirm(`Delete custom provider "${provider.name}"?`)) {
-                void deleteCustomProvider.mutateAsync({ id: provider.id, workspaceId })
+                setCustomProviderError(null)
+                void deleteCustomProvider
+                  .mutateAsync({ id: provider.id, workspaceId })
+                  .catch((error: unknown) => {
+                    const message = getErrorMessage(error, 'Failed to delete custom provider')
+                    logger.error('Failed to delete custom provider', { error: message })
+                    setCustomProviderError(message)
+                  })
               }
             }}
           />
@@ -628,6 +654,7 @@ export function BYOK() {
         }}
         provider={editingCustomProvider}
         canSaveProvider={canManageWorkspace}
+        isSaving={isSavingCustomProvider}
         onSaveProvider={async (input) => {
           if (input.id) {
             await updateCustomProvider.mutateAsync({ ...input, id: input.id, workspaceId })
