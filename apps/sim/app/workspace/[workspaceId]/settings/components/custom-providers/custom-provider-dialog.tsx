@@ -62,6 +62,14 @@ export function CustomProviderDialog({
     onOpenChange(false)
   }
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      onOpenChange(true)
+      return
+    }
+    close()
+  }
+
   const handleLoadModels = async () => {
     setError(null)
     try {
@@ -94,23 +102,24 @@ export function CustomProviderDialog({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={provider ? 'Edit Custom Provider' : 'Add Custom Provider'}>
+    <ChipModal open={open} onOpenChange={handleOpenChange} srTitle={provider ? 'Edit Custom Provider' : 'Add Custom Provider'}>
       <ChipModalHeader onClose={close}>{provider ? 'Edit Custom Provider' : 'Add Custom Provider'}</ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='input' title='Provider name' value={name} onChange={setName} required
+        <ChipModalField type='input' title='Provider name' value={name} onChange={setName} required disabled={isSaving}
           placeholder='My OpenAI endpoint' />
-        <ChipModalField type='input' title='Base URL' value={baseUrl} onChange={setBaseUrl} required
+        <ChipModalField type='input' title='Base URL' value={baseUrl} onChange={setBaseUrl} required disabled={isSaving}
           placeholder='https://api.example.com/v1' />
-        <ChipModalField type='custom' title='API Key'>
+        <ChipModalField type='custom' title='API Key' disabled={isSaving}>
           <ChipInput
             type='password'
             value={apiKey}
             onChange={(event) => setApiKey(event.target.value)}
             placeholder='Optional API key'
             autoComplete='off'
+            disabled={isSaving}
           />
         </ChipModalField>
-        <ChipModalField type='custom' title='Protocol' required>
+        <ChipModalField type='custom' title='Protocol' required disabled={isSaving}>
           <ChipSelect
             options={PROTOCOL_OPTIONS}
             value={protocol}
@@ -118,6 +127,7 @@ export function CustomProviderDialog({
             placeholder='Select protocol'
             fullWidth
             dropdownWidth='trigger'
+            disabled={isSaving}
           />
         </ChipModalField>
         <ChipModalField type='custom' title='Models'>

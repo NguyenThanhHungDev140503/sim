@@ -18,6 +18,7 @@ interface CustomProvidersListProps {
   onEditProvider?: (provider: CustomProvider) => void
   onDeleteProvider?: (provider: CustomProvider) => void
   error?: string | null
+  isLoading?: boolean
 }
 
 export function CustomProvidersList({
@@ -29,6 +30,7 @@ export function CustomProvidersList({
   onEditProvider,
   onDeleteProvider,
   error,
+  isLoading = false,
 }: CustomProvidersListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const filteredModels = useMemo(() => {
@@ -41,6 +43,9 @@ export function CustomProvidersList({
   }, [models, searchTerm])
 
   if (providers) {
+    if (isLoading) {
+      return <p className='text-[var(--text-secondary)] text-sm'>Loading custom providers...</p>
+    }
     if (error) {
       return (
         <p className='text-[var(--text-error)] text-sm' role='alert'>

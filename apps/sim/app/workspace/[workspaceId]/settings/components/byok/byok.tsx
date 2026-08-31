@@ -615,10 +615,12 @@ export function BYOK() {
           <CustomProvidersList
             providers={customProviders.data?.providers ?? []}
             disabled={
+              !canManageWorkspace ||
               customProviders.isLoading ||
               deleteCustomProvider.isPending ||
               isSavingCustomProvider
             }
+            isLoading={customProviders.isLoading}
             error={
               customProviderError ??
               (customProviders.error
@@ -626,11 +628,13 @@ export function BYOK() {
                 : null)
             }
             onEditProvider={(provider) => {
+              if (!canManageWorkspace) return
               setCustomProviderError(null)
               setEditingCustomProvider(provider)
               setCustomProviderDialogOpen(true)
             }}
             onDeleteProvider={(provider) => {
+              if (!canManageWorkspace) return
               if (window.confirm(`Delete custom provider "${provider.name}"?`)) {
                 setCustomProviderError(null)
                 void deleteCustomProvider
@@ -649,13 +653,20 @@ export function BYOK() {
         key={editingCustomProvider?.id ?? 'new'}
         open={customProviderDialogOpen}
         onOpenChange={(open) => {
-          setCustomProviderDialogOpen(open)
-          if (!open) setEditingCustomProvider(undefined)
+          if (open) {
+            setCustomProviderDialogOpen(true)
+            return
+          }
+          setCustomProviderDialogOpen(false)
+          setEditingCustomProvider(undefined)
         }}
         provider={editingCustomProvider}
         canSaveProvider={canManageWorkspace}
         isSaving={isSavingCustomProvider}
         onSaveProvider={async (input) => {
+          if (!canManageWorkspace) {
+            throw new Error('Insufficient workspace permissions')
+          }
           if (input.id) {
             await updateCustomProvider.mutateAsync({ ...input, id: input.id, workspaceId })
           } else {
