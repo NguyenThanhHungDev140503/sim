@@ -8,11 +8,16 @@ import {
   getProviderBySlug,
 } from '@/app/(landing)/models/utils'
 
-export const dynamic = 'force-dynamic'
-
 export const contentType = 'image/png'
 export const size = COVER_OG_SIZE
 
+/**
+ * The sibling page.tsx sets `dynamicParams = false`, a segment-level
+ * restriction that also blocks this metadata route from rendering any
+ * param combination it wasn't statically generated for - but Next does not
+ * share generateStaticParams between a page and its sibling metadata
+ * routes, so without this export every model's OG image 404s.
+ */
 export async function generateStaticParams() {
   return ALL_CATALOG_MODELS.map((model) => ({
     provider: model.providerSlug,
@@ -20,7 +25,7 @@ export async function generateStaticParams() {
   }))
 }
 
-export default async function ModelOgImage({
+export default async function Image({
   params,
 }: {
   params: Promise<{ provider: string; model: string }>

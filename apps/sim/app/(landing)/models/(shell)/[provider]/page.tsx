@@ -22,9 +22,13 @@ import {
 
 const baseUrl = SITE_URL
 
-export const dynamicParams = true
+export const dynamicParams = false
 
-export const dynamic = 'force-dynamic'
+export async function generateStaticParams() {
+  return MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
+    provider: provider.slug,
+  }))
+}
 
 export async function generateMetadata({
   params,
@@ -78,7 +82,7 @@ export default async function ProviderModelsPage({
   const { provider: providerSlug } = await params
   const provider = getProviderBySlug(providerSlug)
 
-  if (!provider) {
+  if (!provider || provider.models.length === 0) {
     notFound()
   }
 

@@ -5,8 +5,25 @@ import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/library/re
 import { buildPostGraphJsonLd, buildPostMetadata, LIBRARY_SECTION } from '@/lib/library/seo'
 import { ContentPostPage } from '@/app/(landing)/components'
 
-export const dynamicParams = true
-export const dynamic = 'force-dynamic'
+export const dynamicParams = false
+
+export async function generateStaticParams() {
+  const posts = await getAllPostMeta()
+  return posts.map((p) => ({ slug: p.slug }))
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const post = await getPostBySlug(slug)
+  if (!post) return {}
+  return buildPostMetadata(post)
+}
+
+export const revalidate = 86400
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params

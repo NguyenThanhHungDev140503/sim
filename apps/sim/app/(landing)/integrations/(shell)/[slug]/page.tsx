@@ -48,7 +48,7 @@ const MAX_TEMPLATES_SHOWN = 12
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
 
-export const dynamicParams = true
+export const dynamicParams = false
 
 /**
  * Returns up to `limit` related integration slugs.
@@ -308,6 +308,10 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
   return faqs
 }
 
+export async function generateStaticParams() {
+  return allIntegrations.map((i) => ({ slug: i.slug }))
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -368,8 +372,6 @@ export async function generateMetadata({
     alternates: { canonical: `${baseUrl}/integrations/${slug}` },
   }
 }
-
-export const dynamic = 'force-dynamic'
 
 export default async function IntegrationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params

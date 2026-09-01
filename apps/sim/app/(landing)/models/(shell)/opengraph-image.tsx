@@ -1,8 +1,6 @@
 import { COVER_OG_SIZE, createCoverOgImage } from '@/lib/og/cover-image'
 import { TOTAL_MODEL_PROVIDERS, TOTAL_MODELS } from '@/app/(landing)/models/utils'
 
-export const dynamic = 'force-dynamic'
-
 export const contentType = 'image/png'
 export const size = COVER_OG_SIZE
 

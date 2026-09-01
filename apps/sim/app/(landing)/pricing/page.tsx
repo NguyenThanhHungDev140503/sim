@@ -32,8 +32,6 @@ export async function generateMetadata({
   return withFilteredNoindex(base, isFiltered)
 }
 
-export const dynamic = 'force-dynamic'
-
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await pricingSearchParamsCache.parse(searchParams)
   return <Pricing />

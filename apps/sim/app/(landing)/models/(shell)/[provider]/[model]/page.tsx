@@ -23,9 +23,14 @@ import {
 
 const baseUrl = SITE_URL
 
-export const dynamicParams = true
+export const dynamicParams = false
 
-export const dynamic = 'force-dynamic'
+export async function generateStaticParams() {
+  return ALL_CATALOG_MODELS.map((model) => ({
+    provider: model.providerSlug,
+    model: model.slug,
+  }))
+}
 
 export async function generateMetadata({
   params,
