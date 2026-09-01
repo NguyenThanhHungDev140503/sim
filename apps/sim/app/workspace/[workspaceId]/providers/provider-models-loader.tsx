@@ -132,20 +132,29 @@ export function ProviderModelsLoader() {
       'custom-anthropic',
       shouldLoad && (customProviders.isLoading || customProviders.isFetching)
     )
-  }, [
-    customProviders.isFetching,
-    customProviders.isLoading,
-    setCustomProviderLoading,
-    shouldLoad,
-  ])
+  }, [customProviders.isFetching, customProviders.isLoading, setCustomProviderLoading, shouldLoad])
 
   useEffect(() => {
-    if (!customProviders.data) return
-    setCustomProviderModels(
-      createCustomProviderModels(customProviders.data.providers),
-      workspaceId
-    )
-  }, [customProviders.data, setCustomProviderModels, workspaceId])
+    if (
+      !shouldLoad ||
+      customProviders.isLoading ||
+      customProviders.isFetching ||
+      customProviders.error ||
+      !customProviders.data
+    ) {
+      return
+    }
+
+    setCustomProviderModels(createCustomProviderModels(customProviders.data.providers), workspaceId)
+  }, [
+    customProviders.data,
+    customProviders.error,
+    customProviders.isFetching,
+    customProviders.isLoading,
+    setCustomProviderModels,
+    shouldLoad,
+    workspaceId,
+  ])
 
   useEffect(() => {
     if (customProviders.error) {

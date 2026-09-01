@@ -213,6 +213,56 @@ describe('ProviderModelsLoader request gating', () => {
     expect(mocks.resetCustomProviderModels).toHaveBeenCalledWith('workspace-1')
   })
 
+  it.each([
+    {
+      name: 'disabled loading',
+      pathname: '/workspace/workspace-1/tables',
+      state: {
+        data: { providers: [{}] },
+        isLoading: false,
+        isFetching: false,
+        error: null,
+      },
+    },
+    {
+      name: 'initial loading',
+      pathname: '/workspace/workspace-1/home',
+      state: {
+        data: { providers: [{}] },
+        isLoading: true,
+        isFetching: false,
+        error: null,
+      },
+    },
+    {
+      name: 'background fetching',
+      pathname: '/workspace/workspace-1/home',
+      state: {
+        data: { providers: [{}] },
+        isLoading: false,
+        isFetching: true,
+        error: null,
+      },
+    },
+    {
+      name: 'error',
+      pathname: '/workspace/workspace-1/home',
+      state: {
+        data: { providers: [{}] },
+        isLoading: false,
+        isFetching: false,
+        error: new Error('load failed'),
+      },
+    },
+  ])('does not repopulate stale custom models while $name', ({ pathname, state }) => {
+    mocks.pathname = pathname
+    mocks.customProvidersState = state
+
+    renderLoader()
+
+    expect(mocks.setCustomProviderModels).not.toHaveBeenCalled()
+  })
+
   it('keys custom model reset and loading data by workspace', () => {
     mocks.pathname = '/workspace/workspace-1/home'
     renderLoader()
