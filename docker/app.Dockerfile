@@ -113,8 +113,6 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
     bun run --cwd packages/sim-setup build && \
-    bun run --cwd packages/cli build && \
-    bun run --cwd packages/sim-cli build && \
     bun run --cwd apps/sim build:sandbox-bundles && \
     cd apps/sim && NEXT_PRIVATE_STANDALONE=true bun x next build --no-lint
 
