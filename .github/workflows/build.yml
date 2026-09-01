@@ -78,6 +78,7 @@ jobs:
           TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:latest"
           TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:${GITHUB_SHA::7}"
           DOCKER_BUILDKIT=1 docker build \
+            --progress=plain \
             -f ${{ matrix.dockerfile }} \
             -t "$TAG_LATEST" \
             -t "$TAG_SHA" \

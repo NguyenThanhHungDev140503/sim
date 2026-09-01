@@ -100,8 +100,7 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
-    DOCKER_BUILD=1 \
-    TS_POSTPROCESS_PROGRAM_WITH_OUT_DIR=1
+    DOCKER_BUILD=1
 
 # Dummy values so next build can evaluate modules. Override at runtime.
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
