@@ -30,7 +30,12 @@ export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
   ...getProviderModels('azure-anthropic'),
 ]
-const CUSTOM_MODEL_PREFIXES = ['custom-openai/', 'custom-anthropic/'] as const
+const CUSTOM_MODEL_PREFIXES = [
+  'custom-openai/',
+  'custom-anthropic/',
+  'custom/',
+  'openai-compat/',
+] as const
 
 /**
  * Standard subblocks for Google service account impersonation.

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentBlock } from '@/blocks/blocks/agent'
+import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
+import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 
 vi.mock('@/blocks', () => ({
   getAllBlocks: vi.fn(() => [
@@ -21,6 +23,16 @@ vi.mock('@/blocks', () => ({
 describe('AgentBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it.each([
+    ['AgentBlock', AgentBlock],
+    ['RouterBlock', RouterBlock],
+    ['RouterV2Block', RouterV2Block],
+    ['EvaluatorBlock', EvaluatorBlock],
+  ])('includes custom endpoint and API key fields in %s', (_name, block) => {
+    expect(block.subBlocks.some((subBlock) => subBlock.id === 'customEndpoint')).toBe(true)
+    expect(block.subBlocks.some((subBlock) => subBlock.id === 'apiKey')).toBe(true)
   })
 
   const paramsFunction = AgentBlock.tools.config?.params

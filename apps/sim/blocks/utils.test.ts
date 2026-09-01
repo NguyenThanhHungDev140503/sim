@@ -95,6 +95,7 @@ import {
   BUILT_IN_TOOL_TYPES,
   getApiKeyCondition,
   getModelOptions,
+  getProviderCredentialSubBlocks,
   getSerializedModelProviderId,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
@@ -349,6 +350,64 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       expect(evaluateCondition('mistral:latest')).toBe(true)
       expect(evaluateCondition('gpt-4o')).toBe(true)
     })
+  })
+})
+
+describe('custom provider credential subblocks', () => {
+  it.each([
+    'custom-openai/provider/model',
+    'custom-anthropic/provider/model',
+    'custom/provider/model',
+    'openai-compat/provider/model',
+  ])('shows customEndpoint for %s', (model) => {
+    const customEndpoint = getProviderCredentialSubBlocks().find(
+      (subBlock) => subBlock.id === 'customEndpoint'
+    )
+
+    expect(customEndpoint?.condition?.({ model })).toEqual({
+      field: 'model',
+      value: true,
+    })
+  })
+
+  it.each(['gpt-4o', 'anthropic/claude-sonnet-4-5', 'ollama/llama3'])(
+    'hides customEndpoint for %s',
+    (model) => {
+      const customEndpoint = getProviderCredentialSubBlocks().find(
+        (subBlock) => subBlock.id === 'customEndpoint'
+      )
+
+      expect(customEndpoint?.condition?.({ model })).toEqual({
+        field: 'model',
+        value: false,
+      })
+    }
+  )
+
+  it('does not expose custom provider endpoint or key in model options', () => {
+    mockProviders.value['custom-openai'].models = ['custom-openai/provider/model']
+    mockProviders.value.customProviderModels = {
+      'custom-openai/provider/model': {
+        id: 'custom-openai/provider/model',
+        label: 'Private provider / model',
+        providerId: 'custom-openai',
+        customProviderId: 'provider',
+        customProviderName: 'Private provider',
+        endpoint: 'https://secret.example.com/v1',
+        hasApiKey: true,
+      },
+    }
+
+    const option = getModelOptions()[0]
+
+    expect(option).toEqual({
+      id: 'custom-openai/provider/model',
+      label: 'Private provider / model',
+      icon: mockOpenAIIcon,
+    })
+    expect(option).not.toHaveProperty('endpoint')
+    expect(option).not.toHaveProperty('hasApiKey')
+    expect(option).not.toHaveProperty('apiKey')
   })
 })
 
