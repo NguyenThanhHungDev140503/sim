@@ -203,7 +203,7 @@ const nextConfig: NextConfig = {
      * Pinned because the failure mode is not slower type checking but none at all:
      * 16.2.12 skipped the stage silently in 138ms.
      */
-    useTypeScriptCli: false,
+    useTypeScriptCli: true,
     preloadEntriesOnStart: false,
     /**
      * Under Turbopack this is not a no-op: the list feeds
