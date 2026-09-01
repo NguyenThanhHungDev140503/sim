@@ -100,7 +100,8 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
-    DOCKER_BUILD=1
+    DOCKER_BUILD=1 \
+    TS_POSTPROCESS_PROGRAM_WITH_OUT_DIR=1
 
 # Dummy values so next build can evaluate modules. Override at runtime.
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
@@ -112,9 +113,7 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    bun run --cwd packages/sim-setup build && \
-    bun run --cwd apps/sim build:sandbox-bundles && \
-    cd apps/sim && node /app/node_modules/next/dist/bin/next build
+    bun x turbo run build --filter=@sim/app
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
 # before (and outside) the Next standalone server, so its dependencies
