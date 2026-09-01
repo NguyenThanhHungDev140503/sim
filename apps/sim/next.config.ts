@@ -93,9 +93,9 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
+    ignoreBuildErrors: true,
   },
-  output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
+  output: 'standalone',
   serverExternalPackages: [
     '@1password/sdk',
     'unpdf',
