@@ -5,7 +5,7 @@ import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/library/re
 import { buildPostGraphJsonLd, buildPostMetadata, LIBRARY_SECTION } from '@/lib/library/seo'
 import { ContentPostPage } from '@/app/(landing)/components'
 
-export const dynamicParams = true
+export const dynamicParams = false
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()

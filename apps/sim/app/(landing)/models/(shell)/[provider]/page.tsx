@@ -22,7 +22,7 @@ import {
 
 const baseUrl = SITE_URL
 
-export const dynamicParams = true
+export const dynamicParams = false
 
 export async function generateStaticParams() {
   return MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({

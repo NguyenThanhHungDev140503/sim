@@ -23,7 +23,7 @@ import {
 
 const baseUrl = SITE_URL
 
-export const dynamicParams = true
+export const dynamicParams = false
 
 export async function generateStaticParams() {
   return ALL_CATALOG_MODELS.map((model) => ({

@@ -5,7 +5,7 @@ import { BLOG_SECTION, buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blo
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { ContentPostPage } from '@/app/(landing)/components'
 
-export const dynamicParams = true
+export const dynamicParams = false
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
