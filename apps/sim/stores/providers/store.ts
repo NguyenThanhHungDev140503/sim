@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import type { CustomProvider } from '@/lib/api/contracts/custom-providers'
-import { buildCustomModelId, normalizeModelKey } from '@/providers/custom-model'
+import {
+  buildCustomModelId,
+  normalizeAndDedupeModelIds,
+  normalizeModelKey,
+} from '@/providers/custom-model'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { CustomProviderModel, OpenRouterModelInfo, ProvidersStore } from './types'
 
@@ -22,6 +26,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
     'custom-anthropic': { models: [], isLoading: false },
   },
   customProviderModels: {},
+  customProviderModelsWorkspaceId: undefined,
   openRouterModelInfo: {},
 
   setProviderModels: (provider, models) => {
@@ -37,13 +42,28 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
     }))
   },
 
-  setCustomProviderModels: (models: CustomProviderModel[]) => {
-    const customProviderModels = Object.fromEntries(models.map((model) => [model.id, model]))
+  setCustomProviderModels: (models: CustomProviderModel[], workspaceId?: string) => {
+    if (
+      workspaceId !== undefined &&
+      get().customProviderModelsWorkspaceId !== workspaceId
+    ) {
+      return
+    }
+
+    const customProviderModels = Object.fromEntries(
+      models.filter(
+        (model, index, allModels) =>
+          allModels.findIndex(
+            (candidate) => normalizeModelKey(candidate.id) === normalizeModelKey(model.id)
+          ) === index
+      ).map((model) => [model.id, model])
+    )
+    const uniqueModels = Object.values(customProviderModels)
     const customModelsByProvider = {
-      'custom-openai': models
+      'custom-openai': uniqueModels
         .filter((model) => model.providerId === 'custom-openai')
         .map((model) => model.id),
-      'custom-anthropic': models
+      'custom-anthropic': uniqueModels
         .filter((model) => model.providerId === 'custom-anthropic')
         .map((model) => model.id),
     }
@@ -66,6 +86,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
     logger.info('Updated custom provider models', { count: models.length })
     set((state) => ({
       customProviderModels,
+      customProviderModelsWorkspaceId: workspaceId ?? state.customProviderModelsWorkspaceId,
       providers: {
         ...state.providers,
         'custom-openai': {
@@ -76,6 +97,20 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
           ...state.providers['custom-anthropic'],
           models: customModelsByProvider['custom-anthropic'],
         },
+      },
+    }))
+  },
+
+  resetCustomProviderModels: (workspaceId?: string) => {
+    PROVIDER_DEFINITIONS['custom-openai'].models = []
+    PROVIDER_DEFINITIONS['custom-anthropic'].models = []
+    set((state) => ({
+      customProviderModels: {},
+      customProviderModelsWorkspaceId: workspaceId,
+      providers: {
+        ...state.providers,
+        'custom-openai': { ...state.providers['custom-openai'], models: [] },
+        'custom-anthropic': { ...state.providers['custom-anthropic'], models: [] },
       },
     }))
   },
@@ -120,7 +155,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
 export function createCustomProviderModels(providers: CustomProvider[]): CustomProviderModel[] {
   return providers.flatMap((provider) => {
     const providerId = provider.protocol === 'anthropic' ? 'custom-anthropic' : 'custom-openai'
-    return provider.models.map((model) => ({
+    return normalizeAndDedupeModelIds(provider.models).models.map((model) => ({
       id: buildCustomModelId(providerId, provider.id, model),
       label: `${provider.name} / ${model.trim()}`,
       providerId,

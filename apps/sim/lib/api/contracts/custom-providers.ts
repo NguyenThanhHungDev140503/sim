@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeModelKey } from '@/providers/custom-model'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 
@@ -20,7 +21,7 @@ export const discoverCustomModelsBodySchema = z.object({
 })
 
 export const customModelItemSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().trim().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
   object: z.string().optional(),
@@ -48,6 +49,23 @@ export const discoverCustomModelsContract = defineRouteContract({
 export const customProviderIdSchema = z.string().trim().min(1)
 export const customProviderProtocolSchema = z.enum(['openai', 'anthropic'])
 export const customProviderModelSchema = z.string().trim().min(1).max(200)
+const customProviderModelsSchema = z
+  .array(customProviderModelSchema)
+  .superRefine((models, ctx) => {
+    const seen = new Set<string>()
+    models.forEach((model, index) => {
+      const key = normalizeModelKey(model)
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Duplicate model IDs are not allowed',
+          path: [index],
+        })
+      } else {
+        seen.add(key)
+      }
+    })
+  })
 export const customProviderSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -55,7 +73,7 @@ export const customProviderSchema = z.object({
   baseUrl: z.string().url(),
   hasApiKey: z.boolean(),
   maskedApiKey: z.string().nullable(),
-  models: z.array(customProviderModelSchema),
+  models: customProviderModelsSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -67,7 +85,9 @@ const customProviderInputSchema = z.object({
   baseUrl: z.string().trim().url('Base URL must be a valid URL'),
   apiKey: z.string().optional(),
   protocol: customProviderProtocolSchema,
-  models: z.array(customProviderModelSchema).min(1, 'Select at least one model').max(200),
+  models: customProviderModelsSchema
+    .min(1, 'Select at least one model')
+    .max(200),
 })
 
 const customProviderParamsSchema = z.object({ id: customProviderIdSchema })

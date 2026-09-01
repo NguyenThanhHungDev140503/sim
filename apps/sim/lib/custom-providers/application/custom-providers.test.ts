@@ -113,6 +113,38 @@ describe('custom provider application CRUD', () => {
     expect(result.hasApiKey).toBe(true)
   })
 
+  it('normalizes saved model ids and rejects duplicates', async () => {
+    dbChainMockFns.returning.mockReturnValueOnce([{ ...providerRow, id: 'provider-2' }])
+
+    await createCustomProvider.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        name: 'Gateway',
+        protocol: 'openai',
+        baseUrl: 'https://example.com/v1',
+        models: ['  Model-A  '],
+      },
+    })
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ models: ['Model-A'] })
+    )
+
+    await expect(
+      createCustomProvider.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          name: 'Gateway',
+          protocol: 'openai',
+          baseUrl: 'https://example.com/v1',
+          models: ['Model-A', ' model-a '],
+        },
+      })
+    ).rejects.toThrow('Duplicate model IDs are not allowed')
+  })
+
   it('updates provider fields and preserves key when key omitted', async () => {
     queueTableRows(customEndpointsTable, [providerRow])
     dbChainMockFns.returning.mockReturnValueOnce([providerRow])

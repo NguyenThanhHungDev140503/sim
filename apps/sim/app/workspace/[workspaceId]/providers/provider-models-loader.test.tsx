@@ -5,6 +5,13 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+interface MockCustomProvidersState {
+  data: { providers: unknown[] } | undefined
+  error: Error | null
+  isFetching: boolean
+  isLoading: boolean
+}
+
 const mocks = vi.hoisted(() => ({
   pathname: '/workspace/workspace-1/tables',
   workspaceId: 'workspace-1' as string | undefined,
@@ -15,15 +22,17 @@ const mocks = vi.hoisted(() => ({
     isFetching: false,
     error: null,
   })),
-  useCustomProviders: vi.fn(() => ({
+  customProvidersState: {
     data: undefined,
     isLoading: false,
     isFetching: false,
     error: null,
-  })),
+  } as MockCustomProvidersState,
+  useCustomProviders: vi.fn(),
   setProviderModels: vi.fn(),
   setProviderLoading: vi.fn(),
   setCustomProviderModels: vi.fn(),
+  resetCustomProviderModels: vi.fn(),
   setOpenRouterModelInfo: vi.fn(),
 }))
 
@@ -66,6 +75,7 @@ vi.mock('@/stores/providers', () => ({
       setProviderModels: typeof mocks.setProviderModels
       setProviderLoading: typeof mocks.setProviderLoading
       setCustomProviderModels: typeof mocks.setCustomProviderModels
+      resetCustomProviderModels: typeof mocks.resetCustomProviderModels
       setOpenRouterModelInfo: typeof mocks.setOpenRouterModelInfo
     }) => unknown
   ) =>
@@ -73,6 +83,7 @@ vi.mock('@/stores/providers', () => ({
       setProviderModels: mocks.setProviderModels,
       setProviderLoading: mocks.setProviderLoading,
       setCustomProviderModels: mocks.setCustomProviderModels,
+      resetCustomProviderModels: mocks.resetCustomProviderModels,
       setOpenRouterModelInfo: mocks.setOpenRouterModelInfo,
     }),
 }))
@@ -105,6 +116,13 @@ describe('ProviderModelsLoader request gating', () => {
     mocks.pathname = '/workspace/workspace-1/tables'
     mocks.workspaceId = 'workspace-1'
     mocks.searchOpen = false
+    mocks.customProvidersState = {
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    }
+    mocks.useCustomProviders.mockImplementation(() => mocks.customProvidersState)
   })
 
   afterEach(() => {
@@ -120,6 +138,7 @@ describe('ProviderModelsLoader request gating', () => {
 
       expectEveryProviderEnabled(false)
       expectCustomProviderEnabled(false)
+      expect(mocks.resetCustomProviderModels).toHaveBeenCalledWith('workspace-1')
     }
   )
 
@@ -131,6 +150,7 @@ describe('ProviderModelsLoader request gating', () => {
 
       expectEveryProviderEnabled(true)
       expectCustomProviderEnabled(true)
+      expect(mocks.resetCustomProviderModels).toHaveBeenCalledWith('workspace-1')
     }
   )
 
@@ -149,5 +169,58 @@ describe('ProviderModelsLoader request gating', () => {
 
     expectEveryProviderEnabled(false)
     expect(mocks.useCustomProviders).toHaveBeenCalledWith(undefined, { enabled: false })
+  })
+
+  it('resets custom models while loading', () => {
+    mocks.pathname = '/workspace/workspace-1/home'
+    mocks.customProvidersState = {
+      data: undefined,
+      isLoading: true,
+      isFetching: false,
+      error: null,
+    }
+
+    renderLoader()
+
+    expect(mocks.resetCustomProviderModels).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('resets custom models when provider list is empty', () => {
+    mocks.pathname = '/workspace/workspace-1/home'
+    mocks.customProvidersState = {
+      data: { providers: [] },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    }
+
+    renderLoader()
+
+    expect(mocks.resetCustomProviderModels).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('resets custom models on provider load error', () => {
+    mocks.pathname = '/workspace/workspace-1/home'
+    mocks.customProvidersState = {
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: new Error('load failed'),
+    }
+
+    renderLoader()
+
+    expect(mocks.resetCustomProviderModels).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('keys custom model reset and loading data by workspace', () => {
+    mocks.pathname = '/workspace/workspace-1/home'
+    renderLoader()
+
+    mocks.workspaceId = 'workspace-2'
+    mocks.pathname = '/workspace/workspace-2/home'
+    renderLoader()
+
+    expect(mocks.resetCustomProviderModels).toHaveBeenLastCalledWith('workspace-2')
   })
 })

@@ -8,7 +8,11 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateShortId } from '@sim/utils/id'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { customProviderOperations } from '@/lib/custom-providers/application/operations'
-import { normalizeModelKey, parseCustomModelId } from '@/providers/custom-model'
+import {
+  normalizeAndDedupeModelIds,
+  normalizeModelKey,
+  parseCustomModelId,
+} from '@/providers/custom-model'
 
 export interface CustomProviderInput {
   workspaceId: string
@@ -17,6 +21,14 @@ export interface CustomProviderInput {
   baseUrl: string
   apiKey?: string
   models: string[]
+}
+
+function normalizeSavedModelIds(models: string[]): string[] {
+  const normalized = normalizeAndDedupeModelIds(models)
+  if (normalized.duplicateModelIds.length > 0) {
+    throw new OrchestrationError('validation', 'Duplicate model IDs are not allowed')
+  }
+  return normalized.models
 }
 
 type EndpointRow = typeof workspaceCustomEndpoints.$inferSelect
@@ -129,7 +141,7 @@ export const createCustomProvider = defineAuthorizedWorkspaceUseCase({
         protocol: input.protocol,
         baseUrl: input.baseUrl,
         encryptedApiKey,
-        models: input.models,
+        models: normalizeSavedModelIds(input.models),
         createdBy: principal.userId,
         createdAt: now,
         updatedAt: now,
@@ -166,7 +178,7 @@ export const updateCustomProvider = defineAuthorizedWorkspaceUseCase({
         protocol: input.protocol,
         baseUrl: input.baseUrl,
         encryptedApiKey,
-        models: input.models,
+        models: normalizeSavedModelIds(input.models),
         updatedAt: new Date(),
       })
       .where(eq(workspaceCustomEndpoints.id, existing.id))

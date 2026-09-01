@@ -100,8 +100,28 @@ export function ProviderModelsLoader() {
   const isSearchModalOpen = useSearchModalStore((state) => state.isOpen)
   const shouldLoad = shouldLoadProviderModels(pathname, workspaceId, isSearchModalOpen)
   const setCustomProviderModels = useProvidersStore((state) => state.setCustomProviderModels)
+  const resetCustomProviderModels = useProvidersStore((state) => state.resetCustomProviderModels)
   const setCustomProviderLoading = useProvidersStore((state) => state.setProviderLoading)
   const customProviders = useCustomProviders(workspaceId, { enabled: shouldLoad })
+
+  useEffect(() => {
+    const loading = customProviders.isLoading || customProviders.isFetching
+    if (!shouldLoad || loading || customProviders.error || !customProviders.data) {
+      resetCustomProviderModels(workspaceId)
+      return
+    }
+    if (customProviders.data.providers.length === 0) {
+      resetCustomProviderModels(workspaceId)
+    }
+  }, [
+    customProviders.data,
+    customProviders.error,
+    customProviders.isFetching,
+    customProviders.isLoading,
+    resetCustomProviderModels,
+    shouldLoad,
+    workspaceId,
+  ])
 
   useEffect(() => {
     setCustomProviderLoading(
@@ -121,8 +141,11 @@ export function ProviderModelsLoader() {
 
   useEffect(() => {
     if (!customProviders.data) return
-    setCustomProviderModels(createCustomProviderModels(customProviders.data.providers))
-  }, [customProviders.data, setCustomProviderModels])
+    setCustomProviderModels(
+      createCustomProviderModels(customProviders.data.providers),
+      workspaceId
+    )
+  }, [customProviders.data, setCustomProviderModels, workspaceId])
 
   useEffect(() => {
     if (customProviders.error) {

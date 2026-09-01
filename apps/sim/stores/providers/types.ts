@@ -40,9 +40,11 @@ export interface CustomProviderModel {
 export interface ProvidersStore {
   providers: Record<ProviderName, ProviderState>
   customProviderModels: Record<string, CustomProviderModel>
+  customProviderModelsWorkspaceId?: string
   openRouterModelInfo: Record<string, OpenRouterModelInfo>
   setProviderModels: (provider: ProviderName, models: string[]) => void
-  setCustomProviderModels: (models: CustomProviderModel[]) => void
+  setCustomProviderModels: (models: CustomProviderModel[], workspaceId?: string) => void
+  resetCustomProviderModels: (workspaceId?: string) => void
   setProviderLoading: (provider: ProviderName, isLoading: boolean) => void
   setOpenRouterModelInfo: (modelInfo: Record<string, OpenRouterModelInfo>) => void
   getProvider: (provider: ProviderName) => ProviderState

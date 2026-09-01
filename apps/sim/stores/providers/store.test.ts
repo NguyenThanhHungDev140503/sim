@@ -67,4 +67,37 @@ describe('providers store custom models', () => {
     ])
     expect(useProvidersStore.getState().customProviderModels[model.id]).toEqual(model)
   })
+
+  it('resets custom models without leaking them across workspaces', () => {
+    const model = createCustomProviderModels([provider])[0]
+    useProvidersStore.getState().resetCustomProviderModels('workspace-1')
+    useProvidersStore.getState().setCustomProviderModels([model], 'workspace-1')
+
+    expect(useProvidersStore.getState().customProviderModels[model.id]).toBeDefined()
+
+    useProvidersStore.getState().resetCustomProviderModels('workspace-2')
+
+    expect(useProvidersStore.getState().customProviderModels).toEqual({})
+    expect(useProvidersStore.getState().customProviderModelsWorkspaceId).toBe('workspace-2')
+    expect(useProvidersStore.getState().providers['custom-openai'].models).toEqual([])
+  })
+
+  it('ignores stale model data keyed to another workspace', () => {
+    const model = createCustomProviderModels([provider])[0]
+    useProvidersStore.getState().resetCustomProviderModels('workspace-2')
+    useProvidersStore.getState().setCustomProviderModels([model], 'workspace-1')
+
+    expect(useProvidersStore.getState().customProviderModels).toEqual({})
+  })
+
+  it('dedupes model ids case-insensitively while preserving first display id', () => {
+    const models = createCustomProviderModels([
+      { ...provider, models: ['  Model-A  ', 'model-a', 'MODEL-B'] },
+    ])
+
+    expect(models.map(({ label }) => label)).toEqual([
+      'Local Gateway / Model-A',
+      'Local Gateway / MODEL-B',
+    ])
+  })
 })

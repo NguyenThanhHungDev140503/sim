@@ -8,12 +8,36 @@ export interface ParsedCustomModelId {
   modelId: string
 }
 
+export interface NormalizedModelIds {
+  duplicateModelIds: string[]
+  models: string[]
+}
+
 export function normalizeModelId(modelId: string): string {
   return modelId.trim()
 }
 
 export function normalizeModelKey(modelId: string): string {
   return normalizeModelId(modelId).toLowerCase()
+}
+
+export function normalizeAndDedupeModelIds(modelIds: string[]): NormalizedModelIds {
+  const seen = new Set<string>()
+  const models: string[] = []
+  const duplicateModelIds: string[] = []
+
+  for (const modelId of modelIds) {
+    const normalizedModelId = normalizeModelId(modelId)
+    const modelKey = normalizeModelKey(normalizedModelId)
+    if (seen.has(modelKey)) {
+      duplicateModelIds.push(normalizedModelId)
+      continue
+    }
+    seen.add(modelKey)
+    models.push(normalizedModelId)
+  }
+
+  return { duplicateModelIds, models }
 }
 
 export function buildCustomModelId(

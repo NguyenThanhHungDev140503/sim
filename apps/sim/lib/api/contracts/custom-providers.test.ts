@@ -30,4 +30,24 @@ describe('custom provider contracts', () => {
       }).models
     ).toHaveLength(1)
   })
+
+  it('trims model ids and rejects case-insensitive duplicates', () => {
+    const base = {
+      id: 'provider-1',
+      name: 'Local gateway',
+      protocol: 'openai' as const,
+      baseUrl: 'https://example.com/v1',
+      hasApiKey: false,
+      maskedApiKey: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    expect(
+      customProviderSchema.parse({ ...base, models: ['  Model-A  ', 'model-b'] }).models
+    ).toEqual(['Model-A', 'model-b'])
+    expect(() =>
+      customProviderSchema.parse({ ...base, models: ['Model-A', ' model-a '] })
+    ).toThrow('Duplicate model IDs are not allowed')
+  })
 })
