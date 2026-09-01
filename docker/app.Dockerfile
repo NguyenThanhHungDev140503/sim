@@ -114,7 +114,7 @@ RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.nex
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
     bun run --cwd packages/sim-setup build && \
     bun run --cwd apps/sim build:sandbox-bundles && \
-    cd apps/sim && ./node_modules/.bin/next build --no-lint
+    ./node_modules/.bin/next build apps/sim --no-lint
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
 # before (and outside) the Next standalone server, so its dependencies
