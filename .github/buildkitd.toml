@@ -1,5 +1,19 @@
-# BuildKit configuration for memory-constrained environments
-# Limits parallelism to reduce memory usage during multi-stage builds
+# BuildKit configuration for memory-constrained CI/self-hosted runners
+# Limits parallelism and configures garbage collection to prevent OOM
 
 [worker.oci]
   max-parallelism = 2
+  snapshotter = "overlayfs"
+  gc = true
+  gckeepstorage = "10GB"
+
+  # Remove cache older than 48h if over 10GB
+  [[worker.oci.gcpolicy]]
+    keepBytes = "10GB"
+    keepDuration = "48h"
+    filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
+
+  # Hard limit at 20GB total
+  [[worker.oci.gcpolicy]]
+    keepBytes = "20GB"
+    all = true

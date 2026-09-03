@@ -16,7 +16,7 @@ jobs:
   build-and-push-app:
     name: Build & Push sim-app
     runs-on: [self-hosted, ubuntu-24.04, docker]
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -46,6 +46,17 @@ jobs:
           fi
           free -h
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          config: .github/buildkitd.toml
+          driver: docker-container
+          driver-opts: |
+            network=host
+            cpus=4
+            memory=8g
+            memswap=12g
+
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -63,16 +74,22 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=,format=short
 
-      - name: Build Docker image with host daemon
+      - name: Build Docker image with resource limits
         run: |
           TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:latest"
           TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:${GITHUB_SHA::7}"
-          DOCKER_BUILDKIT=1 BUILDKIT_CONFIG=.github/buildkitd.toml docker build \
+          docker buildx build \
+            --builder default \
             --progress=plain \
             -f docker/app.Dockerfile \
             -t "$TAG_LATEST" \
             -t "$TAG_SHA" \
-            --memory=8g --memory-swap=12g \
+            --resource memory=8g \
+            --resource memory-swap=12g \
+            --resource cpu-quota=200000 \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --load \
             .
 
       - name: Push Docker image to GHCR
@@ -126,6 +143,9 @@ jobs:
           fi
           free -h
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -143,21 +163,18 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=,format=short
 
-      - name: Build Docker image with host daemon
+      - name: Build and push Docker image
         run: |
           TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:latest"
           TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:${GITHUB_SHA::7}"
-          DOCKER_BUILDKIT=1 docker build \
+          docker buildx build \
+            --builder default \
             --progress=plain \
             -f ${{ matrix.dockerfile }} \
             -t "$TAG_LATEST" \
             -t "$TAG_SHA" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --load \
             .
-
-      - name: Push Docker image to GHCR
         if: github.event_name != 'pull_request'
-        run: |
-          TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:latest"
-          TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:${GITHUB_SHA::7}"
-          docker push "$TAG_LATEST"
-          docker push "$TAG_SHA"

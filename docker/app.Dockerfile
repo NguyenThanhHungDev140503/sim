@@ -1,3 +1,5 @@
+# syntax = docker/dockerfile:1.25
+
 # ========================================
 # Base Stage: runtime-only dependencies (inherited by the final image)
 # ========================================
