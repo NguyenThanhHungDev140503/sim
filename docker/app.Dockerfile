@@ -116,10 +116,6 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
-# Limit Next.js build workers to prevent OOM during page data collection
-ARG NEXT_BUILD_WORKERS=2
-ENV NEXT_BUILD_WORKERS=${NEXT_BUILD_WORKERS}
-
 # Limit Node.js heap size to prevent OOM during build
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
@@ -128,7 +124,7 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
     --mount=type=bind,source=docker/buildkitd.toml,target=/etc/buildkitd.toml \
-    bun run --cwd apps/sim build
+    bun run --cwd apps/sim build --experimental-debug-memory-usage
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
 # before (and outside) the Next standalone server, so its dependencies

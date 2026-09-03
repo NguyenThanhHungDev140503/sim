@@ -205,10 +205,10 @@ const nextConfig: NextConfig = {
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
-    // Aggressive Turbopack memory eviction during build to prevent OOM on CI/self-hosted runners
-    turbopackMemoryEviction: 'full',
-    // Limit Next.js parallelism during page data collection to prevent OOM
-    cpus: 2,
+    // Limit static generation to 1 worker to prevent OOM on memory-constrained runners.
+    // `cpus` and `NEXT_BUILD_WORKERS` do not control the static-generation worker pool.
+    staticGenerationMaxConcurrency: 1,
+    staticGenerationMinPagesPerWorker: 10000,
     /**
      * Under Turbopack this is not a no-op: the list feeds
      * `side_effect_free_packages` and is force-appended to `transpiledPackages`,
