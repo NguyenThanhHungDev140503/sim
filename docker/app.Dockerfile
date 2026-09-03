@@ -124,9 +124,9 @@ WORKDIR /app
 # Runtime dependencies already installed in base-alpine
 ENV NODE_ENV=production
 
-# Create non-root user and group
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -u 1001 -S -G nodejs nextjs
+# Create non-root user and group (Debian uses groupadd/useradd)
+RUN groupadd -g 1001 nodejs && \
+    useradd -u 1001 -g nodejs -m -s /bin/bash nextjs
 
 # Copy application artifacts from builder
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
