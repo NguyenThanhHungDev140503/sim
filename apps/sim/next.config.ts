@@ -205,6 +205,8 @@ const nextConfig: NextConfig = {
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
+    // Aggressive Turbopack memory eviction during build to prevent OOM on CI/self-hosted runners
+    turbopackMemoryEviction: 'full',
     /**
      * Under Turbopack this is not a no-op: the list feeds
      * `side_effect_free_packages` and is force-appended to `transpiledPackages`,

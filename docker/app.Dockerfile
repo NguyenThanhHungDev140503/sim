@@ -66,7 +66,8 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 
 # Install all dependencies (including devDependencies — tailwindcss/postcss are
 # devDeps but required at build time). Then rebuild isolated-vm against Node.js.
-# JOBS=4 caps node-gyp parallelism — higher values OOM isolated-vm (laverdet/isolated-vm#428).
+# JOBS=2 caps node-gyp parallelism — higher values OOM isolated-vm (laverdet/isolated-vm#428).
+# Reduced from 4 to 2 to prevent OOM on memory-constrained CI/self-hosted runners.
 #
 # node-gyp comes from the lockfile, not `npx`. It is a devDependency of apps/sim
 # purely so `turbo prune` keeps it: the only other copy is transitive through
@@ -77,7 +78,7 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
     HUSKY=0 bun install --ignore-scripts --linker=hoisted && \
-    cd node_modules/isolated-vm && JOBS=4 /app/node_modules/.bin/node-gyp rebuild --release
+    cd node_modules/isolated-vm && JOBS=2 /app/node_modules/.bin/node-gyp rebuild --release
 
 # ========================================
 # Builder Stage: Build the Application
@@ -110,8 +111,10 @@ ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
+# Limit BuildKit parallelism for the build step to reduce memory pressure
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
+    --mount=type=bind,source=.github/buildkitd.toml,target=/etc/buildkitd.toml \
     bun run --cwd apps/sim build
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs

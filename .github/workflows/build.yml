@@ -67,11 +67,12 @@ jobs:
         run: |
           TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:latest"
           TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:${GITHUB_SHA::7}"
-          DOCKER_BUILDKIT=1 docker build \
+          DOCKER_BUILDKIT=1 BUILDKIT_CONFIG=.github/buildkitd.toml docker build \
             --progress=plain \
             -f docker/app.Dockerfile \
             -t "$TAG_LATEST" \
             -t "$TAG_SHA" \
+            --memory=8g --memory-swap=12g \
             .
 
       - name: Push Docker image to GHCR
