@@ -9,6 +9,9 @@ import {
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
 
+// CI mode detection - disables static generation and OG images to save memory
+const isCI = process.env.CI === 'true'
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
@@ -205,10 +208,14 @@ const nextConfig: NextConfig = {
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
-    // Limit static generation to 1 worker to prevent OOM on memory-constrained runners.
-    // `cpus` and `NEXT_BUILD_WORKERS` do not control the static-generation worker pool.
-    staticGenerationMaxConcurrency: 1,
-    staticGenerationMinPagesPerWorker: 10000,
+    // CI mode: disable static generation to save memory on CI runners
+    // staticGenerationMaxConcurrency: 1 limits to 1 worker
+    // staticGenerationMinPagesPerWorker: high value effectively disables it
+    ...(isCI && {
+      staticGenerationMaxConcurrency: 1,
+      staticGenerationMinPagesPerWorker: 99999,
+      staticGenerationRetryCount: 0,
+    }),
     /**
      * Under Turbopack this is not a no-op: the list feeds
      * `side_effect_free_packages` and is force-appended to `transpiledPackages`,
@@ -667,6 +674,11 @@ const nextConfig: NextConfig = {
         source: '/r/:shortCode',
         destination: 'https://go.trybeluga.ai/:shortCode',
       },
+      // CI mode: serve blank image for OG images to skip generation
+      ...(isCI ? [{
+        source: '/:path*/opengraph-image.png',
+        destination: '/blank.png',
+      }] : []),
     ]
   },
 }

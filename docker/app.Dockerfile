@@ -1,39 +1,40 @@
 # syntax = docker/dockerfile:1.25
 
 # ========================================
-# Base Stage: runtime-only dependencies (inherited by the final image)
+# Base Debian slim: runtime-only dependencies + pre-compiled isolated-vm
+# This layer is cached and reused across builds. isolated-vm is compiled once.
 # ========================================
-FROM oven/bun:1.3.14-slim AS base
+FROM oven/bun:1.3.14-slim AS base-alpine
 
-# Install Node.js 24 (Active LTS) and the runtime dependencies once in base.
-# Node runs only the isolated-vm sandbox worker (the app itself runs under Bun);
-# the version is kept in lockstep with the `isolated-vm` pin in
-# apps/sim/package.json — Node 24 (ABI 137) requires isolated-vm 6.x.
-#
-# Only what the running container needs belongs here. ffmpeg backs the
-# `fluent-ffmpeg` serverExternalPackage; python3 is the node-gyp interpreter and
-# is kept because build-base inherits from this stage. The compiler toolchain
-# lives in build-base so the runner does not ship it.
+# Install Node.js 24 (Active LTS), runtime dependencies, and pre-compile isolated-vm
+# Node runs only the isolated-vm sandbox worker; Bun runs the app.
+# isolated-vm is compiled ONCE here and cached in this layer.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     python3 curl ca-certificates bash ffmpeg \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs
+    && apt-get install -y nodejs \
+    # Pre-compile isolated-vm ONCE in this base layer
+    && apt-get install -y --no-install-recommends \
+    python3-pip python3-venv make g++ \
+    && cd /tmp \
+    && npm pack isolated-vm@latest \
+    && tar -xzf isolated-vm-*.tgz \
+    && cd package \
+    && npm install --build-from-source \
+    && mkdir -p /usr/local/lib/node_modules \
+    && cp -r node_modules/isolated-vm /usr/local/lib/node_modules/ \
+    && cd / && rm -rf /tmp/* \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ========================================
-# Build Base: adds the native toolchain the isolated-vm rebuild needs
+# Build Base: adds the native toolchain (minimal)
 # ========================================
-FROM base AS build-base
+FROM base-alpine AS build-base
 
-# The compiler toolchain, needed only to build isolated-vm against Node. The
-# runner copies the finished binary from deps, so shipping these would inflate
-# every ECS task pull for nothing: measured 1.21 GB for base against 1.6 GB for
-# build-base, so ~390 MB stays out of the final image.
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
-    python3-pip python3-venv make g++
+# Only additional build tools needed beyond what base-alpine has
+RUN apk add --no-cache python3-pip python3-venv
 
 # ========================================
 # Pruner Stage: Emit a minimal monorepo subset that sim depends on
@@ -45,42 +46,28 @@ RUN bun install -g turbo@2.9.6
 
 COPY . .
 
-# Read the package name from the app manifest. The published CLI also owns the
-# `sim` package name, so a hard-coded historical name can silently prune the CLI
-# instead of the application after either package is renamed.
+# Read the package name from the app manifest
 RUN APP_PACKAGE_NAME="$(bun -e "console.log(require('./apps/sim/package.json').name)")" && \
     turbo prune "$APP_PACKAGE_NAME" --docker
 
 # ========================================
-# Dependencies Stage: Install Dependencies
+# Dependencies Stage: Install Dependencies (uses pre-compiled isolated-vm from base-alpine)
 # ========================================
 FROM build-base AS deps
 WORKDIR /app
 
-# Pruned manifests from the pruner stage. This layer only invalidates when
-# package.json/bun.lock content changes — not on source edits.
+# Pruned manifests from the pruner stage
 COPY --from=pruner /app/out/json/ ./
-# Use the full bun.lock (not the pruned out/bun.lock). turbo prune emits a
-# bun.lock that bun 1.3.x rejects with "Failed to resolve prod dependency",
-# forcing a slow fresh resolve. The full lockfile parses cleanly and bun
-# only installs what the pruned package.jsons reference.
 COPY --from=pruner /app/bun.lock ./bun.lock
 
-# Install all dependencies (including devDependencies — tailwindcss/postcss are
-# devDeps but required at build time). Then rebuild isolated-vm against Node.js.
-# JOBS=2 caps node-gyp parallelism — higher values OOM isolated-vm (laverdet/isolated-vm#428).
-# Reduced from 4 to 2 to prevent OOM on memory-constrained CI/self-hosted runners.
-#
-# node-gyp comes from the lockfile, not `npx`. It is a devDependency of apps/sim
-# purely so `turbo prune` keeps it: the only other copy is transitive through
-# `@electron/rebuild`, which belongs to apps/desktop and is pruned away. `npx`
-# resolved it from the registry at build time, which pulled a different major
-# (13.x vs the pinned 12.4.0) and bypassed the `minimumReleaseAge` supply-chain
-# gate in bunfig.toml on every production image build.
+# Copy pre-compiled isolated-vm from base-alpine layer (no rebuild needed!)
+COPY --from=base-alpine /usr/local/lib/node_modules/isolated-vm ./node_modules/isolated-vm
+
+# Install all other dependencies (including devDependencies for build time)
+# JOBS=2 caps node-gyp parallelism for any native deps
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
-    HUSKY=0 bun install --ignore-scripts --linker=hoisted && \
-    cd node_modules/isolated-vm && JOBS=2 /app/node_modules/.bin/node-gyp rebuild --release
+    HUSKY=0 bun install --ignore-scripts --linker=hoisted
 
 # ========================================
 # Builder Stage: Build the Application
@@ -89,16 +76,13 @@ FROM build-base AS builder
 ARG TARGETPLATFORM
 WORKDIR /app
 
-# Copy node_modules from deps stage (cached if dependencies don't change)
+# Copy node_modules from deps stage (includes pre-compiled isolated-vm)
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy pruned source tree (apps/sim + workspace packages it depends on)
 COPY --from=pruner /app/out/full/ ./
 
-# Next.js 16 / Turbopack workspace-root detection looks for a lockfile next to
-# the workspace package.json. Without it, `next build` fails with
-# "couldn't find next/package.json from /app/apps/sim". turbo also warns
-# "Lockfile not found at /app/bun.lock" without it.
+# Lockfile for Next.js/Turbopack workspace detection
 COPY --from=pruner /app/bun.lock ./bun.lock
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
@@ -123,75 +107,53 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 # Limit BuildKit parallelism for the build step to reduce memory pressure
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    --mount=type=bind,source=docker/buildkitd.toml,target=/etc/buildkitd.toml \
     bun run --cwd apps/sim build --experimental-debug-memory-usage
 
-# Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
-# before (and outside) the Next standalone server, so its dependencies
-# (@sim/runtime-secrets, AWS SDK) are inlined here rather than resolved from the
-# pruned standalone node_modules. The dynamic import of ./server.js stays a
-# runtime import.
+# Bundle the secrets-loading bootstrap into a self-contained entrypoint
 RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 
 # ========================================
 # Runner Stage: Run the actual app
 # ========================================
 
-FROM base AS runner
+FROM base-alpine AS runner
 WORKDIR /app
 
-# Node.js 24, Python, ffmpeg, etc. are already installed in base stage
+# Runtime dependencies already installed in base-alpine
 ENV NODE_ENV=production
 
 # Create non-root user and group
-RUN groupadd -g 1001 nodejs && \
-    useradd -u 1001 -g nodejs nextjs
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -u 1001 -S -G nodejs nextjs
 
 # Copy application artifacts from builder
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
 
-# Self-contained secrets-loading bootstrap (bundled in the builder stage). Runs
-# before the standalone server.js to hydrate process.env from the runtime secret.
+# Self-contained secrets-loading bootstrap
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/bootstrap.js ./apps/sim/bootstrap.js
 
-# Copy blog/author content for runtime filesystem reads (not part of the JS bundle)
+# Copy blog/author content for runtime filesystem reads
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/content
 
-# Copy isolated-vm native module (compiled for Node.js in deps stage)
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
+# Copy isolated-vm native module (pre-compiled in base-alpine)
+COPY --from=base-alpine --chown=nextjs:nodejs /usr/local/lib/node_modules/isolated-vm ./node_modules/isolated-vm
 
-# The collab-doc seed/merge/persist routes run the converter (markdown <-> Yjs) server-side. `yjs` is a
-# serverExternalPackage, and the Next standalone tracer copies it only partially — it misses ESM subpath
-# files that `yjs/dist/yjs.mjs` imports through `lib0`'s exports map (e.g. `lib0/logging`), so the seed
-# 500s ("Cannot find module 'lib0/logging'") and every collaborative doc is stuck read-only. Overwrite
-# the partial trace with the complete packages from the full install (outputFileTracingIncludes can't:
-# its globs resolve against apps/sim, but these deps hoist to the monorepo-root node_modules).
+# Copy Yjs stack (hoisted to monorepo root in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/lib0 ./node_modules/lib0
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/yjs ./node_modules/yjs
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modules/y-protocols
 
-# `@img/sharp-<platform>` loads libvips from `@img/sharp-libvips-<platform>` through the dynamic
-# linker, not a JS require, so the tracer copies the binding but not the library and sharp dies with
-# "ERR_DLOPEN_FAILED: libvips-cpp.so: cannot open shared object file". Same hoisting reason as the Yjs
-# stack above. Copying whole directories keeps these arch-agnostic (each build's deps stage holds only
-# its own platform's packages) and keeps sharp and its binding on the same install. Must stay below
-# the standalone COPY, which ships its own partial node_modules that would otherwise win.
+# Sharp and @img (dynamic libvips loading)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
 
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
-# Copy the pre-built sandbox library bundles (pptxgenjs, docx, pdf-lib) that
-# run inside the V8 isolate. Committed into the repo; see
-# apps/sim/lib/execution/sandbox/bundles/build.ts to regenerate.
+# Copy the pre-built sandbox library bundles
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bundles ./apps/sim/lib/execution/sandbox/bundles
-
-# Guardrails PII runs in a standalone Presidio service (combined analyzer +
-# anonymizer, docker/pii.Dockerfile), reached over the network via PII_URL —
-# no Python/Presidio in this image.
 
 # Create .next/cache directory with correct ownership
 RUN mkdir -p apps/sim/.next/cache && \

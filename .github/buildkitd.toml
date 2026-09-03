@@ -1,19 +1,19 @@
-# BuildKit configuration for memory-constrained CI/self-hosted runners
-# Limits parallelism and configures garbage collection to prevent OOM
+# BuildKit configuration for GitHub hosted runners (7GB RAM)
+# Limits parallelism and configures aggressive garbage collection to prevent OOM
 
 [worker.oci]
-  max-parallelism = 2
+  max-parallelism = 1
   snapshotter = "overlayfs"
   gc = true
-  gckeepstorage = "10GB"
+  gckeepstorage = "1GB"
 
-  # Remove cache older than 48h if over 10GB
+  # Remove cache older than 24h if over 1GB
   [[worker.oci.gcpolicy]]
-    keepBytes = "10GB"
-    keepDuration = "48h"
+    keepBytes = "1GB"
+    keepDuration = "24h"
     filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
 
-  # Hard limit at 20GB total
+  # Hard limit at 2GB total
   [[worker.oci.gcpolicy]]
-    keepBytes = "20GB"
+    keepBytes = "2GB"
     all = true

@@ -405,3 +405,33 @@ Expected: PASS
 ```bash
 git commit -m "chore: verify API validation and test suite for custom providers"
 ```
+
+---
+
+## Phase 6: Architecture Decisions & GStack Review
+
+### Settled Decisions
+- **D1 (Database Schema)**: Option A — Dedicated `workspace_custom_endpoints` table in `packages/db/schema.ts` with `workspaceId`, `name`, `protocol` (`openai` | `anthropic`), `baseUrl`, `encryptedApiKey` (nullable), `models` (`jsonb`), and timestamps.
+- **D2 (SSRF Policy for LAN/Localhost)**: Option A — Environment variable `ALLOW_PRIVATE_CUSTOM_ENDPOINTS=true` enables local/intranet IPs (e.g., `127.0.0.1`, `host.docker.internal`, `192.168.x.x`), while permanent blacklist on AWS/Cloud metadata (`169.254.169.254`, `metadata.google.internal`) is enforced unconditionally.
+- **D3 (Protocol Toggle)**: Option A — Explicit protocol toggle in UI (`OpenAI-Compatible` vs `Anthropic-Compatible`) for deterministic headers, request bodies, and streaming format.
+- **D4 (Security & DNS Rebinding)**: Injected `createPinnedFetch(resolvedIP)` into `new OpenAI({ fetch })` and `new Anthropic({ fetch })` in execution engines to prevent DNS Rebinding attacks.
+- **D5 (Stream & Tool Calling Resilience)**: Added `extractReasoningContent` for reasoning models (DeepSeek-R1 / QwQ) and normalized `finish_reason: "stop"` tool calls.
+- **D6 (Scope & Block Coverage)**: Expanded `customEndpoint` support to `AgentBlock`, `RouterBlock`, and `EvaluatorBlock`.
+
+---
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAR | Selective Expansion accepted; DNS rebinding & reasoning tokens mitigated |
+| Outside Voice | `delegate_task / codex` | Independent 2nd opinion | 1 | CLEAR | 36 adversarial checks resolved; multi-provider uuid IDs confirmed |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | D1, D2, D3 resolved; 5 implementation tasks locked |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+VERDICT: CEO + ENG CLEARED — ready to implement
+
+NO UNRESOLVED DECISIONS
+
+

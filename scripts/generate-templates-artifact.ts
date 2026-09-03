@@ -1,0 +1,446 @@
+#!/usr/bin/env bun
+/**
+ * Generate template artifact JSON for landing pages.
+ * This replaces the need to import @/blocks/registry in landing pages during static generation.
+ * Run with: bun scripts/generate-templates-artifact.ts
+ */
+
+import { writeFileSync } from 'fs'
+import { resolve } from 'path'
+
+interface LandingTemplate {
+  id: string
+  title: string
+  prompt: string
+  category: string
+  tags: readonly string[]
+  featured?: boolean
+  ownerBlockType: string
+  otherBlockTypes: readonly string[]
+  allBlockTypes: readonly string[]
+}
+
+// Template data extracted from block meta files
+// This is a curated subset for landing page static generation
+const templatesByBlock: Record<string, LandingTemplate[]> = {
+  slack: [
+    {
+      id: "slack_post_message",
+      title: "Post a message to Slack",
+      prompt: "Post a message to a Slack channel when something happens.",
+      category: "communication",
+      tags: ["notify", "message", "channel"],
+      featured: true,
+      ownerBlockType: "slack",
+      otherBlockTypes: ["slack"],
+      allBlockTypes: ["slack"],
+    },
+    {
+      id: "slack_list_channels",
+      title: "List Slack channels",
+      prompt: "Get a list of Slack channels in your workspace.",
+      category: "communication",
+      tags: ["list", "channels"],
+      featured: false,
+      ownerBlockType: "slack",
+      otherBlockTypes: ["slack"],
+      allBlockTypes: ["slack"],
+    }
+  ],
+  github: [
+    {
+      id: "github_create_issue",
+      title: "Create a GitHub issue",
+      prompt: "Create a GitHub issue when something happens.",
+      category: "devops",
+      tags: ["issue", "create", "repository"],
+      featured: true,
+      ownerBlockType: "github",
+      otherBlockTypes: ["github"],
+      allBlockTypes: ["github"],
+    },
+    {
+      id: "github_get_repository",
+      title: "Get GitHub repository",
+      prompt: "Get details about a GitHub repository.",
+      category: "devops",
+      tags: ["repository", "get"],
+      featured: false,
+      ownerBlockType: "github",
+      otherBlockTypes: ["github"],
+      allBlockTypes: ["github"],
+    }
+  ],
+  google_sheets: [
+    {
+      id: "google_sheets_append_row",
+      title: "Append row to Google Sheets",
+      prompt: "Add a new row to a Google Sheet when something happens.",
+      category: "productivity",
+      tags: ["spreadsheet", "append", "row"],
+      featured: true,
+      ownerBlockType: "google_sheets",
+      otherBlockTypes: ["google_sheets"],
+      allBlockTypes: ["google_sheets"],
+    }
+  ],
+  notion: [
+    {
+      id: "notion_create_page",
+      title: "Create Notion page",
+      prompt: "Create a new page in a Notion database.",
+      category: "productivity",
+      tags: ["database", "create", "page"],
+      featured: true,
+      ownerBlockType: "notion",
+      otherBlockTypes: ["notion"],
+      allBlockTypes: ["notion"],
+    }
+  ],
+  airtable: [
+    {
+      id: "airtable_create_record",
+      title: "Create Airtable record",
+      prompt: "Create a new record in an Airtable base.",
+      category: "productivity",
+      tags: ["database", "create", "record"],
+      featured: true,
+      ownerBlockType: "airtable",
+      otherBlockTypes: ["airtable"],
+      allBlockTypes: ["airtable"],
+    }
+  ],
+  linear: [
+    {
+      id: "linear_create_issue",
+      title: "Create Linear issue",
+      prompt: "Create a new issue in Linear.",
+      category: "devops",
+      tags: ["issue", "create", "project"],
+      featured: true,
+      ownerBlockType: "linear",
+      otherBlockTypes: ["linear"],
+      allBlockTypes: ["linear"],
+    }
+  ],
+  jira: [
+    {
+      id: "jira_create_issue",
+      title: "Create Jira issue",
+      prompt: "Create a new issue in Jira.",
+      category: "devops",
+      tags: ["issue", "create", "project"],
+      featured: true,
+      ownerBlockType: "jira",
+      otherBlockTypes: ["jira"],
+      allBlockTypes: ["jira"],
+    }
+  ],
+  asana: [
+    {
+      id: "asana_create_task",
+      title: "Create Asana task",
+      prompt: "Create a new task in Asana.",
+      category: "productivity",
+      tags: ["task", "create", "project"],
+      featured: true,
+      ownerBlockType: "asana",
+      otherBlockTypes: ["asana"],
+      allBlockTypes: ["asana"],
+    }
+  ],
+  trello: [
+    {
+      id: "trello_create_card",
+      title: "Create Trello card",
+      prompt: "Create a new card in Trello.",
+      category: "productivity",
+      tags: ["card", "create", "board"],
+      featured: true,
+      ownerBlockType: "trello",
+      otherBlockTypes: ["trello"],
+      allBlockTypes: ["trello"],
+    }
+  ],
+  gmail: [
+    {
+      id: "gmail_send_email",
+      title: "Send Gmail",
+      prompt: "Send an email via Gmail.",
+      category: "communication",
+      tags: ["email", "send"],
+      featured: true,
+      ownerBlockType: "gmail",
+      otherBlockTypes: ["gmail"],
+      allBlockTypes: ["gmail"],
+    }
+  ],
+  outlook: [
+    {
+      id: "outlook_send_email",
+      title: "Send Outlook email",
+      prompt: "Send an email via Outlook.",
+      category: "communication",
+      tags: ["email", "send"],
+      featured: true,
+      ownerBlockType: "outlook",
+      otherBlockTypes: ["outlook"],
+      allBlockTypes: ["outlook"],
+    }
+  ],
+  salesforce: [
+    {
+      id: "salesforce_create_record",
+      title: "Create Salesforce record",
+      prompt: "Create a new record in Salesforce.",
+      category: "sales",
+      tags: ["crm", "create", "record"],
+      featured: true,
+      ownerBlockType: "salesforce",
+      otherBlockTypes: ["salesforce"],
+      allBlockTypes: ["salesforce"],
+    }
+  ],
+  hubspot: [
+    {
+      id: "hubspot_create_contact",
+      title: "Create HubSpot contact",
+      prompt: "Create a new contact in HubSpot.",
+      category: "sales",
+      tags: ["crm", "create", "contact"],
+      featured: true,
+      ownerBlockType: "hubspot",
+      otherBlockTypes: ["hubspot"],
+      allBlockTypes: ["hubspot"],
+    }
+  ],
+  discord: [
+    {
+      id: "discord_post_message",
+      title: "Post to Discord",
+      prompt: "Post a message to a Discord channel.",
+      category: "communication",
+      tags: ["message", "channel", "notify"],
+      featured: true,
+      ownerBlockType: "discord",
+      otherBlockTypes: ["discord"],
+      allBlockTypes: ["discord"],
+    }
+  ],
+  stripe: [
+    {
+      id: "stripe_create_payment",
+      title: "Create Stripe payment",
+      prompt: "Create a payment intent in Stripe.",
+      category: "commerce",
+      tags: ["payment", "stripe"],
+      featured: true,
+      ownerBlockType: "stripe",
+      otherBlockTypes: ["stripe"],
+      allBlockTypes: ["stripe"],
+    }
+  ],
+  sendgrid: [
+    {
+      id: "sendgrid_send_email",
+      title: "Send SendGrid email",
+      prompt: "Send an email via SendGrid.",
+      category: "communication",
+      tags: ["email", "send"],
+      featured: true,
+      ownerBlockType: "sendgrid",
+      otherBlockTypes: ["sendgrid"],
+      allBlockTypes: ["sendgrid"],
+    }
+  ],
+  twilio: [
+    {
+      id: "twilio_send_sms",
+      title: "Send Twilio SMS",
+      prompt: "Send an SMS via Twilio.",
+      category: "communication",
+      tags: ["sms", "twilio"],
+      featured: true,
+      ownerBlockType: "twilio",
+      otherBlockTypes: ["twilio"],
+      allBlockTypes: ["twilio"],
+    }
+  ],
+  openai: [
+    {
+      id: "openai_chat_completion",
+      title: "OpenAI chat completion",
+      prompt: "Generate text using OpenAI chat completion.",
+      category: "ai",
+      tags: ["llm", "chat", "completion"],
+      featured: true,
+      ownerBlockType: "openai",
+      otherBlockTypes: ["openai"],
+      allBlockTypes: ["openai"],
+    }
+  ],
+  anthropic: [
+    {
+      id: "anthropic_chat_completion",
+      title: "Anthropic chat completion",
+      prompt: "Generate text using Anthropic Claude.",
+      category: "ai",
+      tags: ["llm", "chat", "claude"],
+      featured: true,
+      ownerBlockType: "anthropic",
+      otherBlockTypes: ["anthropic"],
+      allBlockTypes: ["anthropic"],
+    }
+  ],
+  pinecone: [
+    {
+      id: "pinecone_upsert",
+      title: "Upsert to Pinecone",
+      prompt: "Upsert vectors to Pinecone index.",
+      category: "databases",
+      tags: ["vector", "upsert", "index"],
+      featured: true,
+      ownerBlockType: "pinecone",
+      otherBlockTypes: ["pinecone"],
+      allBlockTypes: ["pinecone"],
+    }
+  ],
+  qdrant: [
+    {
+      id: "qdrant_upsert",
+      title: "Upsert to Qdrant",
+      prompt: "Upsert vectors to Qdrant collection.",
+      category: "databases",
+      tags: ["vector", "upsert", "collection"],
+      featured: true,
+      ownerBlockType: "qdrant",
+      otherBlockTypes: ["qdrant"],
+      allBlockTypes: ["qdrant"],
+    }
+  ],
+  supabase: [
+    {
+      id: "supabase_insert",
+      title: "Insert into Supabase",
+      prompt: "Insert a row into a Supabase table.",
+      category: "databases",
+      tags: ["postgres", "insert", "row"],
+      featured: true,
+      ownerBlockType: "supabase",
+      otherBlockTypes: ["supabase"],
+      allBlockTypes: ["supabase"],
+    }
+  ],
+  mongodb: [
+    {
+      id: "mongodb_insert",
+      title: "Insert into MongoDB",
+      prompt: "Insert a document into MongoDB.",
+      category: "databases",
+      tags: ["mongo", "insert", "document"],
+      featured: true,
+      ownerBlockType: "mongodb",
+      otherBlockTypes: ["mongodb"],
+      allBlockTypes: ["mongodb"],
+    }
+  ],
+  redis: [
+    {
+      id: "redis_set_key",
+      title: "Set Redis key",
+      prompt: "Set a key-value pair in Redis.",
+      category: "databases",
+      tags: ["cache", "set", "key"],
+      featured: true,
+      ownerBlockType: "redis",
+      otherBlockTypes: ["redis"],
+      allBlockTypes: ["redis"],
+    }
+  ],
+  postgresql: [
+    {
+      id: "postgresql_query",
+      title: "Query PostgreSQL",
+      prompt: "Run a SQL query on PostgreSQL.",
+      category: "databases",
+      tags: ["sql", "query", "postgres"],
+      featured: true,
+      ownerBlockType: "postgresql",
+      otherBlockTypes: ["postgresql"],
+      allBlockTypes: ["postgresql"],
+    }
+  ],
+  mysql: [
+    {
+      id: "mysql_query",
+      title: "Query MySQL",
+      prompt: "Run a SQL query on MySQL.",
+      category: "databases",
+      tags: ["sql", "query", "mysql"],
+      featured: true,
+      ownerBlockType: "mysql",
+      otherBlockTypes: ["mysql"],
+      allBlockTypes: ["mysql"],
+    }
+  ],
+  snowflake: [
+    {
+      id: "snowflake_query",
+      title: "Query Snowflake",
+      prompt: "Run a SQL query on Snowflake.",
+      category: "databases",
+      tags: ["sql", "query", "warehouse"],
+      featured: true,
+      ownerBlockType: "snowflake",
+      otherBlockTypes: ["snowflake"],
+      allBlockTypes: ["snowflake"],
+    }
+  ],
+  bigquery: [
+    {
+      id: "bigquery_query",
+      title: "Query BigQuery",
+      prompt: "Run a SQL query on BigQuery.",
+      category: "databases",
+      tags: ["sql", "query", "analytics"],
+      featured: true,
+      ownerBlockType: "bigquery",
+      otherBlockTypes: ["bigquery"],
+      allBlockTypes: ["bigquery"],
+    }
+  ],
+  redis: [
+    {
+      id: "redis_get_key",
+      title: "Get Redis key",
+      prompt: "Get a value from Redis by key.",
+      category: "databases",
+      tags: ["cache", "get", "key"],
+      featured: false,
+      ownerBlockType: "redis",
+      otherBlockTypes: ["redis"],
+      allBlockTypes: ["redis"],
+    }
+  ],
+  postgresql: [
+    {
+      id: "postgresql_execute",
+      title: "Execute PostgreSQL",
+      prompt: "Execute a SQL statement on PostgreSQL.",
+      category: "databases",
+      tags: ["sql", "execute", "postgres"],
+      featured: false,
+      ownerBlockType: "postgresql",
+      otherBlockTypes: ["postgresql"],
+      allBlockTypes: ["postgresql"],
+    }
+  ],
+  // Add more integrations as needed
+}
+
+const outputPath = resolve(__dirname, '../packages/deployment-config/templates-by-block.json')
+const fs = require('fs')
+fs.writeFileSync(outputPath, JSON.stringify(templatesByBlock, null, 2))
+
+console.log(`Generated ${Object.keys(templatesByBlock).length} block types with templates`)
+console.log(`Written to ${outputPath}`)

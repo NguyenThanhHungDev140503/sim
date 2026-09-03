@@ -22,7 +22,8 @@ import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
-import { getTemplatesForBlock } from '@/blocks/registry'
+// Template artifact replaces @/blocks/registry for static generation
+import templatesByBlock from '@sim/deployment-config/templates-by-block.json'
 
 const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length
@@ -395,7 +396,22 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     integration,
     relatedIntegrations.map((i) => i.name)
   )
-  const matchingTemplates = getTemplatesForBlock(integration.type)
+  // Get templates from artifact (replaces getTemplatesForBlock for static generation)
+  const integrationTemplates = (templatesByBlock as Record<string, Array<{
+    id: string
+    title: string
+    prompt: string
+    category: string
+    tags: readonly string[]
+    featured?: boolean
+    ownerBlockType: string
+    otherBlockTypes: readonly string[]
+    allBlockTypes: readonly string[]
+  }>>)[integration.type] ?? []
+
+  // Add isOwner flag for sorting (true for owner templates, false for alsoIntegrations templates)
+  const matchingTemplates = integrationTemplates
+    .map((t) => ({ ...t, isOwner: t.ownerBlockType === integration.type }))
     .sort(
       (a, b) =>
         Number(b.featured ?? false) - Number(a.featured ?? false) ||

@@ -4,10 +4,9 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
+    tags:
+      - 'v*'
+  # pull_request: []  # Disabled to save CI minutes
 
 env:
   REGISTRY: ghcr.io
@@ -15,8 +14,8 @@ env:
 jobs:
   build-and-push-app:
     name: Build & Push sim-app
-    runs-on: [self-hosted, ubuntu-24.04, docker]
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -30,30 +29,8 @@ jobs:
         run: |
           echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
 
-      - name: Free disk space & Enable Swap
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          if ! swapon --show | grep -q "/swapfile"; then
-            sudo swapoff -a || true
-            sudo rm -f /swapfile
-            sudo fallocate -l 10G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=10240
-            sudo chmod 600 /swapfile
-            sudo mkswap /swapfile
-            sudo swapon /swapfile
-          fi
-          free -h
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-        with:
-          buildkitd-config: .github/buildkitd.toml
-          driver: docker-container
-          driver-opts: |
-            network=host
-            memory=12g
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -72,28 +49,17 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=,format=short
 
-      - name: Build Docker image with resource limits
-        run: |
-          TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:latest"
-          TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:${GITHUB_SHA::7}"
-          docker buildx build \
-            --builder default \
-            --progress=plain \
-            -f docker/app.Dockerfile \
-            -t "$TAG_LATEST" \
-            -t "$TAG_SHA" \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            --load \
-            .
-
-      - name: Push Docker image to GHCR
-        if: github.event_name != 'pull_request'
-        run: |
-          TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:latest"
-          TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/sim-app:${GITHUB_SHA::7}"
-          docker push "$TAG_LATEST"
-          docker push "$TAG_SHA"
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/app.Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: false
 
   build-and-push-other:
     name: Build & Push other services
@@ -122,22 +88,6 @@ jobs:
         run: |
           echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
 
-      - name: Free disk space & Enable Swap
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          if ! swapon --show | grep -q "/swapfile"; then
-            sudo swapoff -a || true
-            sudo rm -f /swapfile
-            sudo fallocate -l 10G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=10240
-            sudo chmod 600 /swapfile
-            sudo mkswap /swapfile
-            sudo swapon /swapfile
-          fi
-          free -h
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -159,17 +109,13 @@ jobs:
             type=sha,prefix=,format=short
 
       - name: Build and push Docker image
-        run: |
-          TAG_LATEST="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:latest"
-          TAG_SHA="${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ matrix.service }}:${GITHUB_SHA::7}"
-          docker buildx build \
-            --builder default \
-            --progress=plain \
-            -f ${{ matrix.dockerfile }} \
-            -t "$TAG_LATEST" \
-            -t "$TAG_SHA" \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            --load \
-            .
-        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: false
