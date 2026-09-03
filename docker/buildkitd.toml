@@ -1,0 +1,5 @@
+# BuildKit configuration for memory-constrained environments
+# Limits parallelism to reduce memory usage during multi-stage builds
+
+[worker.oci]
+  max-parallelism = 2

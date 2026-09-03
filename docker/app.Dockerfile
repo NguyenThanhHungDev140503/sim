@@ -114,7 +114,7 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 # Limit BuildKit parallelism for the build step to reduce memory pressure
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    --mount=type=bind,source=.github/buildkitd.toml,target=/etc/buildkitd.toml \
+    --mount=type=bind,source=docker/buildkitd.toml,target=/etc/buildkitd.toml \
     bun run --cwd apps/sim build
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
