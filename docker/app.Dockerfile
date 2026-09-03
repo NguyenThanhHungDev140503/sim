@@ -112,6 +112,10 @@ ENV DATABASE_URL=${DATABASE_URL}
 ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
+# Dummy auth secret for build-time static generation. Override at runtime.
+ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
+ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 # Limit BuildKit parallelism for the build step to reduce memory pressure
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
