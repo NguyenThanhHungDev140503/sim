@@ -16,7 +16,7 @@ jobs:
   build-and-push-app:
     name: Build & Push sim-app
     runs-on: [self-hosted, ubuntu-24.04, docker]
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
