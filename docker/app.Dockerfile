@@ -87,6 +87,9 @@ COPY --from=pruner /app/out/full/ ./
 # Copy template artifact for landing pages (from host context, committed to repo)
 COPY packages/deployment-config/templates-by-block.json ./packages/deployment-config/templates-by-block.json
 
+# Verify template artifact exists
+RUN ls -la ./packages/deployment-config/templates-by-block.json
+
 # Lockfile for Next.js/Turbopack workspace detection
 COPY --from=pruner /app/bun.lock ./bun.lock
 
