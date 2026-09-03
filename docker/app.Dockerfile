@@ -34,7 +34,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 FROM base-alpine AS build-base
 
 # Only additional build tools needed beyond what base-alpine has
-RUN apk add --no-cache python3-pip python3-venv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip python3-venv \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ========================================
 # Pruner Stage: Emit a minimal monorepo subset that sim depends on
