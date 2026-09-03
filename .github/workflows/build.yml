@@ -53,6 +53,8 @@ jobs:
           driver: docker-container
           driver-opts: |
             network=host
+            memory=8g
+            memswap=12g
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -81,9 +83,6 @@ jobs:
             -f docker/app.Dockerfile \
             -t "$TAG_LATEST" \
             -t "$TAG_SHA" \
-            --resource memory=8g \
-            --resource memory-swap=12g \
-            --resource cpu-quota=200000 \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             --load \
