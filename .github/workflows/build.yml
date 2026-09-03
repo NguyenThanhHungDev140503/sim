@@ -49,13 +49,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
         with:
-          config: .github/buildkitd.toml
+          buildkitd-config: .github/buildkitd.toml
           driver: docker-container
           driver-opts: |
             network=host
             cpus=4
             memory=8g
-            memswap=12g
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
