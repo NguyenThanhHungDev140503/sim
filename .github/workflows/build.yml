@@ -54,7 +54,6 @@ jobs:
           driver-opts: |
             network=host
             memory=8g
-            memswap=12g
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
