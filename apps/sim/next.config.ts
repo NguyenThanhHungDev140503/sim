@@ -207,6 +207,8 @@ const nextConfig: NextConfig = {
     preloadEntriesOnStart: false,
     // Aggressive Turbopack memory eviction during build to prevent OOM on CI/self-hosted runners
     turbopackMemoryEviction: 'full',
+    // Limit Next.js parallelism during page data collection to prevent OOM
+    cpus: 2,
     /**
      * Under Turbopack this is not a no-op: the list feeds
      * `side_effect_free_packages` and is force-appended to `transpiledPackages`,

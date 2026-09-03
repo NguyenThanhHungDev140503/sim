@@ -120,6 +120,9 @@ ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 ARG NEXT_BUILD_WORKERS=2
 ENV NEXT_BUILD_WORKERS=${NEXT_BUILD_WORKERS}
 
+# Limit Node.js heap size to prevent OOM during build
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 # Limit BuildKit parallelism for the build step to reduce memory pressure
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
