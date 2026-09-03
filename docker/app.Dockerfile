@@ -46,6 +46,9 @@ WORKDIR /app
 
 RUN bun install -g turbo@2.9.6
 
+# Copy template artifact before pruning so it's available in builder
+COPY packages/deployment-config/templates-by-block.json ./templates-by-block.json
+
 COPY . .
 
 # Read the package name from the app manifest
@@ -83,6 +86,9 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy pruned source tree (apps/sim + workspace packages it depends on)
 COPY --from=pruner /app/out/full/ ./
+
+# Copy template artifact for landing pages (replaces @/blocks/registry import)
+COPY --from=pruner /app/templates-by-block.json ./packages/deployment-config/templates-by-block.json
 
 # Lockfile for Next.js/Turbopack workspace detection
 COPY --from=pruner /app/bun.lock ./bun.lock
