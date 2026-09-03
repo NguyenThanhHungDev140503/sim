@@ -53,8 +53,6 @@ jobs:
           driver: docker-container
           driver-opts: |
             network=host
-            cpus=4
-            memory=8g
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
