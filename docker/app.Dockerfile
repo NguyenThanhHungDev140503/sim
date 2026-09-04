@@ -87,6 +87,9 @@ COPY --from=pruner /app/out/full/ ./
 # Copy template artifact for landing pages (from host context, committed to repo)
 COPY packages/deployment-config/templates-by-block.json ./packages/deployment-config/templates-by-block.json
 
+# Copy entire deployment-config package for internal imports (env-capabilities, etc.)
+COPY packages/deployment-config ./packages/deployment-config
+
 # Verify template artifact exists
 RUN ls -la ./packages/deployment-config/templates-by-block.json
 
