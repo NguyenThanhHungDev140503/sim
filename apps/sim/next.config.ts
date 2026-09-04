@@ -15,12 +15,22 @@ const isCI = process.env.CI === 'true'
 const isAggressiveCI = isCI && process.env.AGGRESSIVE_CI === 'true'
 // Use webpack instead of Turbopack in CI to reduce memory usage
 const useWebpack = isCI && process.env.USE_WEBPACK === 'true'
+// Limit webpack workers in CI
+const limitWebpackWorkers = isCI && process.env.LIMIT_WEBPACK_WORKERS === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
   // Use webpack in aggressive CI mode to reduce memory (Turbopack uses more RSS)
-  ...(useWebpack && { turbopack: undefined, webpack: (config: any) => config }),
+  ...(useWebpack && { 
+    turbopack: undefined, 
+    webpack: (config: any, { isServer }: { isServer: boolean }) => {
+      if (limitWebpackWorkers && !isServer) {
+        config.parallelism = 1
+      }
+      return config
+    }
+  }),
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).
