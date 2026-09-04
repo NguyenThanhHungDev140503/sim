@@ -10,13 +10,17 @@ import {
 import { LANDING_ROUTES } from './lib/landing/routes'
 
 // CI mode detection - disables static generation and OG images to save memory
-  const isCI = process.env.CI === 'true'
-  // Aggressive CI mode - limits Turbopack workers and disables all static generation
-  const isAggressiveCI = isCI && process.env.AGGRESSIVE_CI === 'true'
+const isCI = process.env.CI === 'true'
+// Aggressive CI mode - limits Turbopack workers and disables all static generation
+const isAggressiveCI = isCI && process.env.AGGRESSIVE_CI === 'true'
+// Use webpack instead of Turbopack in CI to reduce memory usage
+const useWebpack = isCI && process.env.USE_WEBPACK === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
+  // Use webpack in aggressive CI mode to reduce memory (Turbopack uses more RSS)
+  ...(useWebpack && { turbopack: undefined, webpack: (config: any) => config }),
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).

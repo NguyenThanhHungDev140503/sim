@@ -97,7 +97,8 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
     DOCKER_BUILD=1 \
     CI=true \
-    AGGRESSIVE_CI=true
+    AGGRESSIVE_CI=true \
+    USE_WEBPACK=true
 
 # Dummy values so next build can evaluate modules. Override at runtime.
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
@@ -111,13 +112,13 @@ ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
 # Limit Node.js heap size to prevent OOM during build (aggressive for GitHub 7GB runner)
-ENV NODE_OPTIONS="--max-old-space-size=2048 --max-semi-space-size=128"
+ENV NODE_OPTIONS="--max-old-space-size=1024 --max-semi-space-size=64"
 
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 # Limit BuildKit parallelism for the build step to reduce memory pressure
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    bun run --cwd apps/sim build --experimental-debug-memory-usage
+    bun run --cwd apps/sim build
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint
 RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
