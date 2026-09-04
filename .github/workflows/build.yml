@@ -42,7 +42,7 @@ jobs:
           USE_WEBPACK: true
           LIMIT_WEBPACK_WORKERS: true
           MINIMAL_CI: true
-          NODE_OPTIONS: --max-old-space-size=5120
+          NODE_OPTIONS: --max-old-space-size=5632
           NEXT_TELEMETRY_DISABLED: 1
           VERCEL_TELEMETRY_DISABLED: 1
           DATABASE_URL: "postgresql://user:pass@localhost:5432/dummy"
