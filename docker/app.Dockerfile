@@ -95,7 +95,9 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
-    DOCKER_BUILD=1
+    DOCKER_BUILD=1 \
+    CI=true \
+    AGGRESSIVE_CI=true
 
 # Dummy values so next build can evaluate modules. Override at runtime.
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
@@ -108,8 +110,8 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
-# Limit Node.js heap size to prevent OOM during build
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Limit Node.js heap size to prevent OOM during build (aggressive for GitHub 7GB runner)
+ENV NODE_OPTIONS="--max-old-space-size=2048 --max-semi-space-size=128"
 
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 # Limit BuildKit parallelism for the build step to reduce memory pressure

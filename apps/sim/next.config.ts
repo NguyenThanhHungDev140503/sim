@@ -10,7 +10,9 @@ import {
 import { LANDING_ROUTES } from './lib/landing/routes'
 
 // CI mode detection - disables static generation and OG images to save memory
-const isCI = process.env.CI === 'true'
+  const isCI = process.env.CI === 'true'
+  // Aggressive CI mode - limits Turbopack workers and disables all static generation
+  const isAggressiveCI = isCI && process.env.AGGRESSIVE_CI === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -215,6 +217,11 @@ const nextConfig: NextConfig = {
       staticGenerationMaxConcurrency: 1,
       staticGenerationMinPagesPerWorker: 99999,
       staticGenerationRetryCount: 0,
+      // Aggressive CI: further limit workers and disable more features
+      ...(isAggressiveCI && {
+        workerThreads: false,
+        cpus: 1,
+      }),
     }),
     /**
      * Under Turbopack this is not a no-op: the list feeds
