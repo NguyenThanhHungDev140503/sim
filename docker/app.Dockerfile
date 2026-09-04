@@ -96,11 +96,7 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
     DOCKER_BUILD=1 \
-    CI=true \
-    AGGRESSIVE_CI=true \
-    USE_WEBPACK=true \
-    LIMIT_WEBPACK_WORKERS=true \
-    MINIMAL_CI=true
+    CI=true
 
 # Dummy values so next build can evaluate modules. Override at runtime.
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
@@ -113,12 +109,13 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
-# Limit Node.js heap size to prevent OOM during build (aggressive for GitHub 7GB runner)
-ENV NODE_OPTIONS="--max-old-space-size=1024"
+# Limit Node.js heap size for build stability on 7GB runners
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-# Next.js build is done in GitHub Actions job 'build-nextjs', output copied via artifact
-# Skip build in Docker, just verify output exists
-RUN ls -la apps/sim/.next/standalone
+# Run build in Docker
+RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
+    --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
+    bun run --cwd apps/sim build
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint
 RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js

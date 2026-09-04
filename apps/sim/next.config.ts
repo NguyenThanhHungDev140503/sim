@@ -9,30 +9,12 @@ import {
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
 
-// CI mode detection - disables static generation and OG images to save memory
+// CI mode detection
 const isCI = process.env.CI === 'true'
-// Aggressive CI mode - limits Turbopack workers and disables all static generation
-const isAggressiveCI = isCI && process.env.AGGRESSIVE_CI === 'true'
-// Use webpack instead of Turbopack in CI to reduce memory usage
-const useWebpack = isCI && process.env.USE_WEBPACK === 'true'
-// Limit webpack workers in CI
-const limitWebpackWorkers = isCI && process.env.LIMIT_WEBPACK_WORKERS === 'true'
-// Minimal CI mode - disables most features for memory-constrained builds
-const isMinimalCI = isCI && process.env.MINIMAL_CI === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
-  // Use webpack in aggressive CI mode to reduce memory (Turbopack uses more RSS)
-  ...(useWebpack && { 
-    turbopack: undefined, 
-    webpack: (config: any, { isServer }: { isServer: boolean }) => {
-      if (limitWebpackWorkers && !isServer) {
-        config.parallelism = 1
-      }
-      return config
-    }
-  }),
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).
@@ -226,22 +208,11 @@ const nextConfig: NextConfig = {
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
-    // CI mode: disable static generation to save memory on CI runners
-    // staticGenerationMaxConcurrency: 1 limits to 1 worker
-    // staticGenerationMinPagesPerWorker: high value effectively disables it
+    // CI mode: limit static generation concurrency to protect memory on CI runners
     ...(isCI && {
       staticGenerationMaxConcurrency: 1,
       staticGenerationMinPagesPerWorker: 99999,
       staticGenerationRetryCount: 0,
-      // Aggressive CI: further limit workers and disable more features
-      ...(isAggressiveCI && {
-        workerThreads: false,
-        cpus: 1,
-      }),
-      // Minimal CI: disable font optimization, image optimization, etc.
-      ...(isMinimalCI && {
-        optimizeFonts: false,
-      }),
     }),
     /**
      * Under Turbopack this is not a no-op: the list feeds
