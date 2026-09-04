@@ -52,7 +52,6 @@ jobs:
           NEXT_PUBLIC_APP_URL: "http://localhost:3000"
           BETTER_AUTH_SECRET: "build-time-dummy-secret-change-in-production"
         run: |
-          bun run build:sandbox-bundles
           bun run --cwd apps/sim build
           bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
           ls -la apps/sim/.next/standalone
