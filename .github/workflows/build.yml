@@ -12,17 +12,72 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  build-and-push-app:
-    name: Build & Push sim-app
+  build-nextjs:
+    name: Build Next.js app
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
+    outputs:
+      nextjs-output-path: ${{ steps.build.outputs.nextjs-output-path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          cd apps/sim
+          bun install --frozen-lockfile
+
+      - name: Build Next.js app
+        id: build
+        env:
+          CI: true
+          AGGRESSIVE_CI: true
+          USE_WEBPACK: true
+          LIMIT_WEBPACK_WORKERS: true
+          MINIMAL_CI: true
+          NODE_OPTIONS: --max-old-space-size=4096
+          NEXT_TELEMETRY_DISABLED: 1
+          VERCEL_TELEMETRY_DISABLED: 1
+          DATABASE_URL: "postgresql://user:pass@localhost:5432/dummy"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+          BETTER_AUTH_SECRET: "build-time-dummy-secret-change-in-production"
+        run: |
+          cd apps/sim
+          bun run next build
+          echo "nextjs-output-path=apps/sim/.next/standalone" >> $GITHUB_OUTPUT
+
+      - name: Upload Next.js build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build-output
+          path: apps/sim/.next/standalone
+          retention-days: 1
+
+  build-and-push-app:
+    name: Build & Push sim-app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
       packages: write
+    needs: build-nextjs
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download Next.js build output
+        uses: actions/download-artifact@v4
+        with:
+          name: nextjs-build-output
+          path: apps/sim/.next/standalone
 
       - name: Set lowercase repository owner
         id: repo-owner
