@@ -24,7 +24,8 @@ import {
 const baseUrl = SITE_URL
 
 export async function generateStaticParams() {
-  return ALL_CATALOG_MODELS.map((model) => ({
+  // Pre-render featured models at build time; remaining models render on demand
+  return ALL_CATALOG_MODELS.slice(0, 24).map((model) => ({
     provider: model.providerSlug,
     model: model.slug,
   }))

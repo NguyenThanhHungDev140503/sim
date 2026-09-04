@@ -308,7 +308,8 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
 }
 
 export async function generateStaticParams() {
-  return allIntegrations.map((i) => ({ slug: i.slug }))
+  // Pre-render featured integrations at build time; remaining integrations render on demand
+  return allIntegrations.slice(0, 24).map((i) => ({ slug: i.slug }))
 }
 
 export async function generateMetadata({
