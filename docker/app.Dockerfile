@@ -109,8 +109,8 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
-# Limit Node.js heap size for build stability on 7GB runners (keeps headroom for Rust Turbopack)
-ENV NODE_OPTIONS="--max-old-space-size=2048"
+# Limit Node.js heap size for build stability on runners with swap
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Run build in Docker
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
