@@ -18,7 +18,8 @@
     "./service-account-metadata": {
       "types": "./src/service-account-metadata.ts",
       "default": "./src/service-account-metadata.ts"
-    }
+    },
+    "./templates-by-block.json": "./templates-by-block.json"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
