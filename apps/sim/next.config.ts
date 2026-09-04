@@ -241,9 +241,6 @@ const nextConfig: NextConfig = {
       // Minimal CI: disable font optimization, image optimization, etc.
       ...(isMinimalCI && {
         optimizeFonts: false,
-        images: {
-          disableStaticImages: true,
-        },
       }),
     }),
     /**
