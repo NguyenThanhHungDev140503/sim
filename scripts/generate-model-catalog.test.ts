@@ -44,4 +44,13 @@ describe('model catalog artifact generator', () => {
     const { stdout } = await execFileAsync('bun', ['run', SCRIPT, '--check'], { cwd: ROOT })
     expect(stdout).toContain('Model catalog artifact is up to date')
   })
+
+  it('keeps landing model utilities out of the provider registry graph', async () => {
+    const source = await readFile(
+      resolve(ROOT, 'apps/sim/app/(landing)/models/utils.ts'),
+      'utf8'
+    )
+
+    expect(source).not.toContain("from '@/providers/models'")
+  })
 })

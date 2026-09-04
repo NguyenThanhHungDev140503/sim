@@ -1,11 +1,10 @@
-import type { ComponentType } from 'react'
 import Link from 'next/link'
 import { getProviderColor } from '@/app/(landing)/models/components/constants'
+import { getProviderIconComponent } from '@/app/(landing)/models/components/provider-icons'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
 import {
   formatPrice,
   formatTokenCount,
-  MODEL_CATALOG_PROVIDERS,
 } from '@/app/(landing)/models/utils'
 
 /** Flagship providers featured in the landing-page comparison, in display order. */
@@ -13,16 +12,6 @@ const FEATURED_COMPARISON_PROVIDER_IDS = ['anthropic', 'openai', 'google']
 
 /** Max latest models pulled from each featured provider. */
 const MAX_MODELS_PER_PROVIDER = 4
-
-const PROVIDER_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = (() => {
-  const map: Record<string, ComponentType<{ className?: string }>> = {}
-  for (const provider of MODEL_CATALOG_PROVIDERS) {
-    if (provider.icon) {
-      map[provider.id] = provider.icon
-    }
-  }
-  return map
-})()
 
 function selectComparisonModels(models: CatalogModel[]): CatalogModel[] {
   const seen = new Set<string>()
@@ -54,7 +43,7 @@ interface ModelLabelProps {
 }
 
 function ModelLabel({ model }: ModelLabelProps) {
-  const Icon = PROVIDER_ICON_MAP[model.providerId]
+  const Icon = getProviderIconComponent(model.providerId)
 
   return (
     <div className='flex w-[90px] shrink-0 items-center justify-end gap-1.5 sm:w-[140px] lg:w-[180px]'>
@@ -84,158 +73,157 @@ function StackedCostChart({ models }: ChartProps) {
     )
     .sort((a, b) => a.total - b.total)
 
-  const maxTotal = entries.length > 0 ? Math.max(...entries.map((e) => e.total)) : 0
-  const data = { entries, maxTotal }
+  if (entries.length === 0) return null
 
-  if (data.entries.length === 0) return null
+  const maxTotal = Math.max(...entries.map((e) => e.total))
 
   return (
-    <div className='flex flex-col gap-3'>
-      <div className='flex flex-col gap-1'>
-        <h3 className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
-          Cost
-        </h3>
-        <span className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Per 1M tokens
-        </span>
-      </div>
+    <div className='space-y-3.5'>
+      {entries.map(({ model, input, output, total }) => {
+        const inputWidth = (input / maxTotal) * 100
+        const outputWidth = (output / maxTotal) * 100
+        const color = getProviderColor(model.providerId)
 
-      <div className='flex flex-col gap-1.5'>
-        {data.entries.map(({ model, input, output, total }) => {
-          const totalPct = data.maxTotal > 0 ? (total / data.maxTotal) * 100 : 0
-          const inputPct = total > 0 ? (input / total) * 100 : 0
-          const color = getProviderColor(model.providerId)
+        return (
+          <div key={model.id} className='group flex items-center gap-3'>
+            <ModelLabel model={model} />
 
-          return (
-            <Link
-              key={model.id}
-              href={model.href}
-              className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
-            >
-              <ModelLabel model={model} />
-              <div className='relative flex h-7 min-w-0 flex-1 items-center'>
-                <div
-                  className='hidden h-full overflow-hidden rounded-r-[3px] sm:flex'
-                  style={{ width: `${Math.max(totalPct, 3)}%` }}
-                >
-                  <div
-                    className='h-full'
-                    style={{
-                      width: `${inputPct}%`,
-                      backgroundColor: color,
-                      opacity: 0.8,
-                    }}
-                  />
-                  <div
-                    className='h-full'
-                    style={{
-                      width: `${100 - inputPct}%`,
-                      backgroundColor: color,
-                      opacity: 0.35,
-                    }}
-                  />
-                </div>
-                <span className='shrink-0 text-[11px] text-[var(--text-muted)] sm:ml-2.5 sm:text-xs'>
-                  {formatPrice(input)} input / {formatPrice(output)} output
-                </span>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
+            <div className='relative flex h-7 flex-1 items-center overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
+              <div
+                className='h-full transition-all duration-300'
+                style={{
+                  width: `${inputWidth}%`,
+                  backgroundColor: color,
+                  opacity: 0.85,
+                }}
+                title={`Input: ${formatPrice(input)}/1M`}
+              />
+              <div
+                className='h-full transition-all duration-300'
+                style={{
+                  width: `${outputWidth}%`,
+                  backgroundColor: color,
+                  opacity: 0.45,
+                }}
+                title={`Output: ${formatPrice(output)}/1M`}
+              />
+
+              <span className='absolute right-2.5 text-[12px] font-medium text-[var(--text-secondary)]'>
+                {formatPrice(total)}
+                <span className='hidden text-[11px] text-[var(--text-muted)] sm:inline'>/1M</span>
+              </span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 function ContextWindowChart({ models }: ChartProps) {
   const entries = models
-    .map((model) => ({
-      model,
-      value: model.contextWindow,
-    }))
+    .map((model) => ({ model, value: model.contextWindow }))
     .filter((e): e is { model: CatalogModel; value: number } => e.value !== null && e.value > 0)
-    .sort((a, b) => a.value - b.value)
+    .sort((a, b) => b.value - a.value)
 
-  const maxValue = entries.length > 0 ? Math.max(...entries.map((e) => e.value)) : 0
-  const data = { entries, maxValue }
+  if (entries.length === 0) return null
 
-  if (data.entries.length === 0) return null
+  const maxValue = Math.max(...entries.map((e) => e.value))
 
   return (
-    <div className='flex flex-col gap-3'>
-      <div className='flex flex-col gap-1'>
-        <h3 className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
-          Context window
-        </h3>
-        <span className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Max tokens
-        </span>
-      </div>
+    <div className='space-y-3.5'>
+      {entries.map(({ model, value }) => {
+        const width = (value / maxValue) * 100
+        const color = getProviderColor(model.providerId)
 
-      <div className='flex flex-col gap-1.5'>
-        {data.entries.map(({ model, value }) => {
-          const pct = data.maxValue > 0 ? (value / data.maxValue) * 100 : 0
-          const color = getProviderColor(model.providerId)
+        return (
+          <div key={model.id} className='group flex items-center gap-3'>
+            <ModelLabel model={model} />
 
-          return (
-            <Link
-              key={model.id}
-              href={model.href}
-              className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
-            >
-              <ModelLabel model={model} />
-              <div className='relative flex h-7 min-w-0 flex-1 items-center'>
-                <div
-                  className='h-full rounded-r-[3px]'
-                  style={{
-                    width: `${Math.max(pct, 3)}%`,
-                    backgroundColor: color,
-                    opacity: 0.8,
-                  }}
-                />
-                <span className='ml-2.5 shrink-0 text-[11px] text-[var(--text-muted)] sm:text-xs'>
-                  {formatTokenCount(value)}
+            <div className='relative flex h-7 flex-1 items-center overflow-hidden rounded-[6px] bg-[var(--surface-2)]'>
+              <div
+                className='h-full transition-all duration-300'
+                style={{
+                  width: `${Math.max(width, 2)}%`,
+                  backgroundColor: color,
+                  opacity: 0.75,
+                }}
+              />
+
+              <span className='absolute right-2.5 text-[12px] font-medium text-[var(--text-secondary)]'>
+                {formatTokenCount(value)}
+                <span className='hidden text-[11px] text-[var(--text-muted)] sm:inline'>
+                  {' '}
+                  tokens
                 </span>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
+              </span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-interface ModelComparisonChartsProps {
-  models: CatalogModel[]
-}
-
-export function ModelComparisonCharts({ models }: ModelComparisonChartsProps) {
+export function ModelComparisonCharts({ models }: ChartProps) {
   const comparisonModels = selectComparisonModels(models)
 
+  if (comparisonModels.length === 0) return null
+
   return (
-    <section aria-labelledby='comparison-heading'>
-      <div className='px-6 pt-10 pb-4'>
+    <section aria-labelledby='comparison-heading' className='mt-16 space-y-12'>
+      <div className='space-y-2'>
         <h2
           id='comparison-heading'
-          className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+          className='text-[20px] font-medium text-[var(--text-primary)] tracking-[-0.01em]'
         >
-          Compare models
+          Model Comparison
         </h2>
-        <p className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Side-by-side comparison of top models across key metrics.
+        <p className='text-[14px] text-[var(--text-secondary)]'>
+          Compare pricing and context windows across latest flagship models from Anthropic, OpenAI,
+          and Google.
         </p>
       </div>
 
-      <div className='h-px w-full bg-[var(--border)]' />
-
-      <div className='flex flex-col sm:flex-row'>
-        <div className='flex-1 p-6'>
+      <div className='grid gap-8 lg:grid-cols-2'>
+        <div className='space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5 sm:p-6'>
+          <div className='space-y-1'>
+            <h3 className='text-[15px] font-medium text-[var(--text-primary)]'>Cost per 1M Tokens</h3>
+            <p className='text-[12px] text-[var(--text-muted)]'>
+              Combined input (solid) and output (light) pricing
+            </p>
+          </div>
           <StackedCostChart models={comparisonModels} />
+          <div className='flex items-center gap-4 pt-2 text-[11px] text-[var(--text-muted)]'>
+            <span className='flex items-center gap-1.5'>
+              <span className='size-2.5 rounded-sm bg-[var(--text-secondary)] opacity-85' />
+              Input
+            </span>
+            <span className='flex items-center gap-1.5'>
+              <span className='size-2.5 rounded-sm bg-[var(--text-secondary)] opacity-45' />
+              Output
+            </span>
+          </div>
         </div>
-        <div className='h-px w-full bg-[var(--border)] sm:h-auto sm:w-px' />
-        <div className='flex-1 p-6'>
+
+        <div className='space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5 sm:p-6'>
+          <div className='space-y-1'>
+            <h3 className='text-[15px] font-medium text-[var(--text-primary)]'>Context Window</h3>
+            <p className='text-[12px] text-[var(--text-muted)]'>
+              Total tokens supported per request
+            </p>
+          </div>
           <ContextWindowChart models={comparisonModels} />
         </div>
+      </div>
+
+      <div className='flex justify-end'>
+        <Link
+          href='/comparisons'
+          className='text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+        >
+          View detailed head-to-head comparisons →
+        </Link>
       </div>
     </section>
   )

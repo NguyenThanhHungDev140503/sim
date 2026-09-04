@@ -1,83 +1,4 @@
-import type { ComponentType } from 'react'
-import { slugify } from '@sim/utils/string'
-import { type ModelCapabilities, PROVIDER_DEFINITIONS } from '@/providers/models'
-
-const PROVIDER_PREFIXES: Record<string, string[]> = {
-  'azure-openai': ['azure/'],
-  'azure-anthropic': ['azure-anthropic/'],
-  vertex: ['vertex/'],
-  bedrock: ['bedrock/'],
-  cerebras: ['cerebras/'],
-  fireworks: ['fireworks/'],
-  together: ['together/'],
-  baseten: ['baseten/'],
-  'ollama-cloud': ['ollama-cloud/'],
-  groq: ['groq/'],
-  openrouter: ['openrouter/'],
-  vllm: ['vllm/'],
-}
-
-const TOKEN_REPLACEMENTS: Record<string, string> = {
-  ai: 'AI',
-  aws: 'AWS',
-  gpt: 'GPT',
-  oss: 'OSS',
-  llm: 'LLM',
-  xai: 'xAI',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  azure: 'Azure',
-  gemini: 'Gemini',
-  vertex: 'Vertex',
-  groq: 'Groq',
-  mistral: 'Mistral',
-  deepseek: 'DeepSeek',
-  cerebras: 'Cerebras',
-  ollama: 'Ollama',
-  bedrock: 'Bedrock',
-  google: 'Google',
-  moonshotai: 'Moonshot AI',
-  qwen: 'Qwen',
-  glm: 'GLM',
-  kimi: 'Kimi',
-  nova: 'Nova',
-  llama: 'Llama',
-  meta: 'Meta',
-  cohere: 'Cohere',
-  amazon: 'Amazon',
-  opus: 'Opus',
-  sonnet: 'Sonnet',
-  haiku: 'Haiku',
-  flash: 'Flash',
-  preview: 'Preview',
-  latest: 'Latest',
-  mini: 'Mini',
-  nano: 'Nano',
-  pro: 'Pro',
-  plus: 'Plus',
-  plusplus: 'PlusPlus',
-  code: 'Code',
-  codex: 'Codex',
-  instant: 'Instant',
-  versatile: 'Versatile',
-  instruct: 'Instruct',
-  guard: 'Guard',
-  safeguard: 'Safeguard',
-  medium: 'Medium',
-  small: 'Small',
-  large: 'Large',
-  lite: 'Lite',
-  premier: 'Premier',
-  premierer: 'Premier',
-  micro: 'Micro',
-  reasoning: 'Reasoning',
-  non: 'Non',
-  distill: 'Distill',
-  chat: 'Chat',
-  text: 'Text',
-  embedding: 'Embedding',
-  router: 'Router',
-}
+import catalogJson from '@sim/deployment-config/model-catalog.json'
 
 const PRICE_NUMBER_FORMAT_3 = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 0,
@@ -112,6 +33,33 @@ export interface CapabilityFact {
   value: string
 }
 
+export interface ModelCapabilities {
+  temperature?: {
+    min: number
+    max: number
+  }
+  toolUsageControl?: boolean
+  computerUse?: boolean
+  nativeStructuredOutputs?: boolean
+  maxOutputTokens?: number
+  reasoningEffort?: {
+    values: string[]
+  }
+  verbosity?: {
+    values: string[]
+  }
+  promptCaching?: {
+    minimumCacheableTokens: number
+  }
+  thinking?: {
+    levels: string[]
+    default?: string
+    streamed?: 'full' | 'summary' | 'none'
+  }
+  deepResearch?: boolean
+  memory?: boolean
+}
+
 export interface CatalogModel {
   id: string
   slug: string
@@ -141,11 +89,9 @@ export interface CatalogProvider {
   summary: string
   defaultModel: string
   defaultModelDisplayName: string
-  icon?: ComponentType<{ className?: string }>
   color?: string
   isReseller: boolean
   contextInformationAvailable: boolean
-  /** Max agent-block file attachment size in bytes when the provider exceeds the default. */
   maxFileAttachmentBytes: number | null
   providerCapabilityTags: string[]
   modelCount: number
@@ -200,348 +146,26 @@ export function formatUpdatedAt(date: string): string {
   }
 }
 
-export function formatCapabilityBoolean(
-  value: boolean | undefined,
-  {
-    positive = 'Supported',
-    negative = 'Not supported',
-  }: {
-    positive?: string
-    negative?: string
-  } = {}
-): string {
-  return value ? positive : negative
+function trimTrailingZeros(value: string): string {
+  return value.replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1')
 }
 
-function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
-  return !capabilities.deepResearch
+export function formatCapabilityBoolean(value?: boolean): string {
+  if (value === undefined) {
+    return 'Not configurable'
+  }
+  return value ? 'Supported' : 'Not supported'
+}
+
+export function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
+  return Boolean(capabilities.nativeStructuredOutputs)
 }
 
 export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): number | null {
   return capabilities.maxOutputTokens ?? null
 }
 
-function trimTrailingZeros(value: string): string {
-  return value.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
-}
-
-function getProviderPrefixes(providerId: string): string[] {
-  return PROVIDER_PREFIXES[providerId] ?? [`${providerId}/`]
-}
-
-function stripProviderPrefix(providerId: string, modelId: string): string {
-  for (const prefix of getProviderPrefixes(providerId)) {
-    if (modelId.startsWith(prefix)) {
-      return modelId.slice(prefix.length)
-    }
-  }
-
-  return modelId
-}
-
-function stripTechnicalSuffixes(value: string): string {
-  return value
-    .replace(/-\d{8}-v\d+:\d+$/i, '')
-    .replace(/-v\d+:\d+$/i, '')
-    .replace(/-\d{8}$/i, '')
-}
-
-function tokenizeModelName(value: string): string[] {
-  return value
-    .replace(/[./:_]+/g, '-')
-    .split('-')
-    .filter(Boolean)
-}
-
-function mergeVersionTokens(tokens: string[]): string[] {
-  const merged: string[] = []
-
-  for (let index = 0; index < tokens.length; index += 1) {
-    const current = tokens[index]
-    const next = tokens[index + 1]
-
-    if (/^\d{1,2}$/.test(current) && /^\d{1,2}$/.test(next)) {
-      merged.push(`${current}.${next}`)
-      index += 1
-      continue
-    }
-
-    merged.push(current)
-  }
-
-  return merged
-}
-
-function formatModelToken(token: string): string {
-  const normalized = token.toLowerCase()
-
-  if (TOKEN_REPLACEMENTS[normalized]) {
-    return TOKEN_REPLACEMENTS[normalized]
-  }
-
-  if (/^\d+b$/i.test(token)) {
-    return `${token.slice(0, -1)}B`
-  }
-
-  if (/^\d+e$/i.test(token)) {
-    return `${token.slice(0, -1)}E`
-  }
-
-  if (/^o\d+$/i.test(token)) {
-    return token.toLowerCase()
-  }
-
-  if (/^r\d+$/i.test(token)) {
-    return token.toUpperCase()
-  }
-
-  if (/^v\d+$/i.test(token)) {
-    return token.toUpperCase()
-  }
-
-  if (/^\d+\.\d+$/.test(token)) {
-    return token
-  }
-
-  if (/^[a-z]{3,}\d+$/i.test(token)) {
-    const [, prefix, version] = token.match(/^([a-z]{3,})(\d+)$/i) ?? []
-    if (prefix && version) {
-      return `${formatModelToken(prefix)} ${version}`
-    }
-  }
-
-  if (/^[a-z]\d+[a-z]$/i.test(token)) {
-    return token.toUpperCase()
-  }
-
-  if (/^\d+$/.test(token)) {
-    return token
-  }
-
-  return token.charAt(0).toUpperCase() + token.slice(1)
-}
-
-function formatModelDisplayName(providerId: string, modelId: string): string {
-  const shortId = stripProviderPrefix(providerId, modelId)
-  const normalized = stripTechnicalSuffixes(shortId)
-  const tokens = mergeVersionTokens(tokenizeModelName(normalized))
-
-  const displayName = tokens
-    .map(formatModelToken)
-    .join(' ')
-    .split(/\s+/)
-    .filter(
-      (word, index, words) => index === 0 || word.toLowerCase() !== words[index - 1].toLowerCase()
-    )
-    .join(' ')
-
-  return displayName.replace(/^GPT (\d[\w.]*)/i, 'GPT-$1').replace(/\bGpt\b/g, 'GPT')
-}
-
-function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
-  const tags: string[] = []
-
-  if (capabilities.temperature) {
-    tags.push(`Temperature ${capabilities.temperature.min}-${capabilities.temperature.max}`)
-  }
-
-  if (capabilities.toolUsageControl) {
-    tags.push('Tool choice')
-  }
-
-  if (supportsCatalogStructuredOutputs(capabilities)) {
-    tags.push('Structured outputs')
-  }
-
-  if (capabilities.computerUse) {
-    tags.push('Computer use')
-  }
-
-  if (capabilities.deepResearch) {
-    tags.push('Deep research')
-  }
-
-  if (capabilities.reasoningEffort) {
-    tags.push(`Reasoning ${capabilities.reasoningEffort.values.join(', ')}`)
-  }
-
-  if (capabilities.verbosity) {
-    tags.push(`Verbosity ${capabilities.verbosity.values.join(', ')}`)
-  }
-
-  if (capabilities.thinking) {
-    tags.push(`Thinking ${capabilities.thinking.levels.join(', ')}`)
-  }
-
-  if (capabilities.maxOutputTokens) {
-    tags.push(`Max output ${formatTokenCount(capabilities.maxOutputTokens)}`)
-  }
-
-  if (capabilities.memory === false) {
-    tags.push('Memory off')
-  }
-
-  return tags
-}
-
-function buildBestForLine(model: {
-  pricing: PricingInfo
-  capabilities: ModelCapabilities
-  contextWindow: number | null
-}): string | null {
-  const { pricing, capabilities, contextWindow } = model
-
-  if (capabilities.deepResearch) {
-    return 'Best for multi-step research workflows and agent-led web investigation.'
-  }
-
-  if (capabilities.reasoningEffort || capabilities.thinking) {
-    return 'Best for reasoning-heavy tasks that need more deliberate model control.'
-  }
-
-  if (contextWindow && contextWindow >= 1000000) {
-    return 'Best for long-context retrieval, large documents, and high-memory workflows.'
-  }
-
-  if (capabilities.nativeStructuredOutputs) {
-    return 'Best for production workflows that need reliable typed outputs.'
-  }
-
-  if (pricing.input <= 0.2 && pricing.output <= 1.25) {
-    return 'Best for cost-sensitive automations, background tasks, and high-volume workloads.'
-  }
-
-  return null
-}
-
-function buildModelSummary(
-  providerName: string,
-  displayName: string,
-  pricing: PricingInfo,
-  contextWindow: number | null,
-  capabilityTags: string[]
-): string {
-  const parts = [
-    `${displayName} is a ${providerName} model tracked in Sim.`,
-    contextWindow ? `It supports a ${formatTokenCount(contextWindow)} token context window.` : null,
-    `Pricing starts at ${formatPrice(pricing.input)}/1M input tokens and ${formatPrice(pricing.output)}/1M output tokens.`,
-    capabilityTags.length > 0
-      ? `Key capabilities include ${capabilityTags.slice(0, 3).join(', ')}.`
-      : null,
-  ]
-
-  return parts.filter(Boolean).join(' ')
-}
-
-function computeModelRelevanceScore(model: CatalogModel): number {
-  return (
-    (model.capabilities.reasoningEffort ? 10 : 0) +
-    (model.capabilities.thinking ? 10 : 0) +
-    (model.capabilities.deepResearch ? 8 : 0) +
-    (model.capabilities.nativeStructuredOutputs ? 4 : 0) +
-    (model.contextWindow ?? 0) / 100000
-  )
-}
-
-function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
-  return computeModelRelevanceScore(b) - computeModelRelevanceScore(a)
-}
-
-const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
-  const providerSlug = slugify(provider.id)
-  const providerDisplayName = provider.name
-  const providerCapabilityTags = buildCapabilityTags(provider.capabilities ?? {})
-
-  const models: CatalogModel[] = provider.models.map((model) => {
-    const shortId = stripProviderPrefix(provider.id, model.id)
-    const mergedCapabilities = { ...provider.capabilities, ...model.capabilities }
-    const capabilityTags = buildCapabilityTags(mergedCapabilities)
-    const bestFor = buildBestForLine({
-      pricing: model.pricing,
-      capabilities: mergedCapabilities,
-      contextWindow: model.contextWindow ?? null,
-    })
-    const displayName = formatModelDisplayName(provider.id, model.id)
-    const modelSlug = slugify(shortId)
-    const href = `/models/${providerSlug}/${modelSlug}`
-
-    return {
-      id: model.id,
-      slug: modelSlug,
-      href,
-      displayName,
-      shortId,
-      providerId: provider.id,
-      providerName: providerDisplayName,
-      providerSlug,
-      contextWindow: model.contextWindow ?? null,
-      releaseDate: model.releaseDate ?? null,
-      deprecated: !!model.sunset,
-      pricing: model.pricing,
-      capabilities: mergedCapabilities,
-      capabilityTags,
-      summary: buildModelSummary(
-        providerDisplayName,
-        displayName,
-        model.pricing,
-        model.contextWindow ?? null,
-        capabilityTags
-      ),
-      ...(bestFor ? { bestFor } : {}),
-      searchText: [
-        provider.name,
-        providerDisplayName,
-        provider.id,
-        provider.description,
-        model.id,
-        shortId,
-        displayName,
-        capabilityTags.join(' '),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase(),
-    }
-  })
-
-  const defaultModelDisplayName =
-    models.find((model) => model.id === provider.defaultModel)?.displayName ||
-    (provider.defaultModel ? formatModelDisplayName(provider.id, provider.defaultModel) : 'Dynamic')
-
-  const featuredModels = [...models].sort(compareModelsByRelevance).slice(0, 6)
-
-  return {
-    id: provider.id,
-    slug: providerSlug,
-    href: `/models/${providerSlug}`,
-    name: providerDisplayName,
-    description: provider.description,
-    summary: `${providerDisplayName} has ${models.length} tracked model${models.length === 1 ? '' : 's'} in Sim with pricing, context window, and capability metadata.`,
-    defaultModel: provider.defaultModel,
-    defaultModelDisplayName,
-    icon: provider.icon,
-    color: provider.color,
-    isReseller: provider.isReseller ?? false,
-    contextInformationAvailable: provider.contextInformationAvailable !== false,
-    maxFileAttachmentBytes: provider.fileAttachment?.maxBytes ?? null,
-    providerCapabilityTags,
-    modelCount: models.length,
-    models,
-    featuredModels,
-    searchText: [
-      provider.name,
-      provider.id,
-      provider.description,
-      provider.defaultModel,
-      defaultModelDisplayName,
-      providerCapabilityTags.join(' '),
-      models.map((model) => model.displayName).join(' '),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase(),
-  } satisfies CatalogProvider
-})
+const rawProviders: CatalogProvider[] = (catalogJson.providers as unknown as CatalogProvider[])
 
 function assertUniqueGeneratedRoutes(providers: CatalogProvider[]): void {
   const seenProviderHrefs = new Map<string, string>()
@@ -618,7 +242,12 @@ export function getRelatedModels(targetModel: CatalogModel, limit = 6): CatalogM
     return []
   }
 
-  const targetTokens = new Set(tokenizeModelName(stripTechnicalSuffixes(targetModel.shortId)))
+  const targetTokens = new Set(
+    targetModel.shortId
+      .toLowerCase()
+      .split(/[-_/\s]+/)
+      .filter(Boolean)
+  )
 
   const scored = provider.models.reduce<Array<{ model: CatalogModel; score: number }>>(
     (acc, model) => {
@@ -626,7 +255,10 @@ export function getRelatedModels(targetModel: CatalogModel, limit = 6): CatalogM
         return acc
       }
 
-      const modelTokens = tokenizeModelName(stripTechnicalSuffixes(model.shortId))
+      const modelTokens = model.shortId
+        .toLowerCase()
+        .split(/[-_/\s]+/)
+        .filter(Boolean)
       const sharedTokenCount = modelTokens.filter((token) => targetTokens.has(token)).length
       const sharedCapabilityCount = model.capabilityTags.filter((tag) =>
         targetModel.capabilityTags.includes(tag)

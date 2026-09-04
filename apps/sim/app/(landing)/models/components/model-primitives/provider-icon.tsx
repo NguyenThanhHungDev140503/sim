@@ -1,4 +1,5 @@
 import { cn } from '@sim/emcn'
+import { getProviderIconComponent } from '@/app/(landing)/models/components/provider-icons'
 import type { CatalogProvider } from '@/app/(landing)/models/utils'
 
 export function ProviderIcon({
@@ -6,11 +7,11 @@ export function ProviderIcon({
   className = 'size-12 rounded-xl',
   iconClassName = 'size-6',
 }: {
-  provider: Pick<CatalogProvider, 'icon' | 'name'>
+  provider: Pick<CatalogProvider, 'id' | 'name'>
   className?: string
   iconClassName?: string
 }) {
-  const Icon = provider.icon
+  const Icon = getProviderIconComponent(provider.id)
 
   return (
     <span
