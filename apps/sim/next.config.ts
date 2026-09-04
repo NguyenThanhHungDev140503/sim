@@ -17,6 +17,8 @@ const isAggressiveCI = isCI && process.env.AGGRESSIVE_CI === 'true'
 const useWebpack = isCI && process.env.USE_WEBPACK === 'true'
 // Limit webpack workers in CI
 const limitWebpackWorkers = isCI && process.env.LIMIT_WEBPACK_WORKERS === 'true'
+// Minimal CI mode - disables most features for memory-constrained builds
+const isMinimalCI = isCI && process.env.MINIMAL_CI === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -235,6 +237,13 @@ const nextConfig: NextConfig = {
       ...(isAggressiveCI && {
         workerThreads: false,
         cpus: 1,
+      }),
+      // Minimal CI: disable font optimization, image optimization, etc.
+      ...(isMinimalCI && {
+        optimizeFonts: false,
+        images: {
+          disableStaticImages: true,
+        },
       }),
     }),
     /**

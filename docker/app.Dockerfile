@@ -99,7 +99,8 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     CI=true \
     AGGRESSIVE_CI=true \
     USE_WEBPACK=true \
-    LIMIT_WEBPACK_WORKERS=true
+    LIMIT_WEBPACK_WORKERS=true \
+    MINIMAL_CI=true
 
 # Dummy values so next build can evaluate modules. Override at runtime.
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
@@ -113,7 +114,7 @@ ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
 # Limit Node.js heap size to prevent OOM during build (aggressive for GitHub 7GB runner)
-ENV NODE_OPTIONS="--max-old-space-size=768 --max-semi-space-size=32"
+ENV NODE_OPTIONS="--max-old-space-size=384 --max-semi-space-size=16 --gc-interval=100"
 
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 # Limit BuildKit parallelism for the build step to reduce memory pressure
