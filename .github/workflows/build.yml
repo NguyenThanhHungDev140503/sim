@@ -12,7 +12,7 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  Build Next.js app:
+  build-nextjs:
     name: Build Next.js app
     runs-on: ubuntu-latest
     timeout-minutes: 30
