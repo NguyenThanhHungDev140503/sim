@@ -62,6 +62,9 @@ WORKDIR /app
 COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/bun.lock ./bun.lock
 
+# Copy workspace packages from pruner stage for hoisted node_modules symlinks
+COPY --from=pruner /app/out/full/packages ./packages
+
 # Copy pre-compiled isolated-vm from base-alpine layer (no rebuild needed!)
 COPY --from=base-alpine /usr/local/lib/node_modules/isolated-vm ./node_modules/isolated-vm
 
