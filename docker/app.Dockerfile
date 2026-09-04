@@ -112,13 +112,14 @@ ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
 # Limit Node.js heap size to prevent OOM during build (aggressive for GitHub 7GB runner)
-ENV NODE_OPTIONS="--max-old-space-size=1024 --max-semi-space-size=64"
+ENV NODE_OPTIONS="--max-old-space-size=512 --max-semi-space-size=32"
 
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 # Limit BuildKit parallelism for the build step to reduce memory pressure
+# CI: skip sandbox bundles (pre-built in repo), use next build only
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    bun run --cwd apps/sim build
+    bun run --cwd apps/sim next build
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint
 RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
