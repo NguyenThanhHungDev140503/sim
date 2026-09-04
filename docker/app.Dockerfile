@@ -109,13 +109,13 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ARG BETTER_AUTH_SECRET="build-time-dummy-secret-change-in-production"
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
-# Limit Node.js heap size for build stability on 7GB runners
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Limit Node.js heap size for build stability on 7GB runners (keeps headroom for Rust Turbopack)
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
-# Run build in Docker
+# Run build in Docker (use next build directly, sandbox bundles are committed in repo)
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
-    bun run --cwd apps/sim build
+    bun --cwd apps/sim run next build
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint
 RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
