@@ -18,8 +18,6 @@
       "@/serializer/*": ["./serializer/*"],
       "@sim/db": ["../../packages/db"],
       "@sim/db/*": ["../../packages/db/*"],
-      "@sim/deployment-config": ["../../packages/deployment-config"],
-      "@sim/deployment-config/*": ["../../packages/deployment-config/*"],
       "@/executor": ["./executor"],
       "@/executor/*": ["./executor/*"]
     }

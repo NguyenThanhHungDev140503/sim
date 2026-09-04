@@ -65,6 +65,9 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 # Copy workspace packages from pruner stage for hoisted node_modules symlinks
 COPY --from=pruner /app/out/full/packages ./packages
 
+# Ensure @sim/deployment-config is available for install (may not be in turbo prune output)
+COPY packages/deployment-config ./packages/deployment-config
+
 # Copy pre-compiled isolated-vm from base-alpine layer (no rebuild needed!)
 COPY --from=base-alpine /usr/local/lib/node_modules/isolated-vm ./node_modules/isolated-vm
 
@@ -86,15 +89,6 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy pruned source tree (apps/sim + workspace packages it depends on)
 COPY --from=pruner /app/out/full/ ./
-
-# Copy template artifact for landing pages (from host context, committed to repo)
-COPY packages/deployment-config/templates-by-block.json ./packages/deployment-config/templates-by-block.json
-
-# Copy entire deployment-config package for internal imports (env-capabilities, etc.)
-COPY packages/deployment-config ./packages/deployment-config
-
-# Verify template artifact exists
-RUN ls -la ./packages/deployment-config/templates-by-block.json
 
 # Lockfile for Next.js/Turbopack workspace detection
 COPY --from=pruner /app/bun.lock ./bun.lock
