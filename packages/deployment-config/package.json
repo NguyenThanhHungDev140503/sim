@@ -15,6 +15,7 @@
       "default": "./src/integration-availability.ts"
     },
     "./integrations.json": "./src/integrations.json",
+    "./model-catalog.json": "./model-catalog.json",
     "./service-account-metadata": {
       "types": "./src/service-account-metadata.ts",
       "default": "./src/service-account-metadata.ts"
