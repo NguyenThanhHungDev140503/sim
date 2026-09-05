@@ -1,6 +1,6 @@
 'use client'
 
-export const dynamic = 'force-static'
+export const dynamic = 'force-dynamic'
 
 export default function GlobalError({
   error: _error,
