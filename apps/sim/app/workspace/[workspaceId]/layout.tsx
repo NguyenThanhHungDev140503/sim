@@ -24,6 +24,8 @@ import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/work
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
+export const dynamic = 'force-dynamic'
+
 export default async function WorkspaceLayout({
   children,
   params,

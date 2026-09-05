@@ -3,6 +3,8 @@ import { StandaloneSettingsShell } from '@/components/settings/standalone-settin
 import { getSession } from '@/lib/auth'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AccountSettingsLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession()
   if (!session?.user) redirect('/login')

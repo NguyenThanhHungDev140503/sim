@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Resolves the workspace landing route: the chat composer, or `/w`, which
  * selects the first workflow from the list the layout already prefetched.

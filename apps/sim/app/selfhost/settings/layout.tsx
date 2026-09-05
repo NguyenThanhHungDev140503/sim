@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { StandaloneSettingsShell } from '@/components/settings/standalone-settings-shell'
 import { getSession } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export default async function SelfHostSettingsLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession()
   if (!session?.user) redirect('/login')
