@@ -208,6 +208,14 @@ const nextConfig: NextConfig = {
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
+    // CI mode: limit static generation concurrency and workers to protect memory on CI runners
+    ...(isCI && {
+      staticGenerationMaxConcurrency: 1,
+      staticGenerationMinPagesPerWorker: 99999,
+      staticGenerationRetryCount: 0,
+      workerThreads: false,
+      cpus: 1,
+    }),
     /**
      * Under Turbopack this is not a no-op: the list feeds
      * `side_effect_free_packages` and is force-appended to `transpiledPackages`,
