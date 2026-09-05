@@ -52,9 +52,54 @@ jobs:
           NEXT_PUBLIC_APP_URL: "http://localhost:3000"
           BETTER_AUTH_SECRET: "build-time-dummy-secret-change-in-production"
         run: |
+          TELEMETRY_DIR="${RUNNER_TEMP:-/tmp}/sim-build-telemetry"
+          mkdir -p "$TELEMETRY_DIR"
+          TELEMETRY_LOG="$TELEMETRY_DIR/memory-telemetry.log"
+          echo "=== Starting memory telemetry at $(date -u) ===" > "$TELEMETRY_LOG"
+
+          (
+            while true; do
+              {
+                echo "--- $(date -u +'%Y-%m-%dT%H:%M:%SZ') ---"
+                free -m
+                if [ -f /sys/fs/cgroup/memory.current ]; then
+                  echo "cgroup memory.current: $(cat /sys/fs/cgroup/memory.current) bytes"
+                fi
+                if [ -f /sys/fs/cgroup/memory.events ]; then
+                  echo "cgroup memory.events:"
+                  cat /sys/fs/cgroup/memory.events
+                fi
+                echo "Top memory processes:"
+                ps -eo pid,%mem,%cpu,rss,vsz,comm --sort=-rss | head -n 8
+                echo ""
+              } >> "$TELEMETRY_LOG" 2>&1
+              sleep 5
+            done
+          ) &
+          SAMPLER_PID=$!
+
+          cleanup() {
+            local exit_code=$?
+            echo "Stopping telemetry sampler (PID: $SAMPLER_PID)..."
+            kill "$SAMPLER_PID" 2>/dev/null || true
+            wait "$SAMPLER_PID" 2>/dev/null || true
+            echo "=== Last 25 lines of build telemetry ==="
+            tail -n 25 "$TELEMETRY_LOG" 2>/dev/null || true
+            return $exit_code
+          }
+          trap cleanup EXIT INT TERM
+
           bun run --cwd apps/sim build
           bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
           ls -la apps/sim/.next/standalone
+
+      - name: Upload build telemetry artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-memory-telemetry
+          path: ${{ runner.temp }}/sim-build-telemetry/
+          if-no-files-found: ignore
 
       - name: Set lowercase repository owner
         id: repo-owner
