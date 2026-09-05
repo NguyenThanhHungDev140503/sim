@@ -39,6 +39,7 @@ export async function getGitHubStars(): Promise<string> {
       },
       next: { revalidate: 3600 },
       cache: 'force-cache',
+      signal: AbortSignal.timeout(5000),
     })
 
     if (!response.ok) {

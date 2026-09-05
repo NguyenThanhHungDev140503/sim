@@ -110,6 +110,7 @@ export async function getAshbyJobs(): Promise<CareerPosting[]> {
       headers: { Accept: 'application/json' },
       next: { revalidate: REVALIDATE_SECONDS },
       cache: 'force-cache',
+      signal: AbortSignal.timeout(5000),
     })
 
     if (!response.ok) {

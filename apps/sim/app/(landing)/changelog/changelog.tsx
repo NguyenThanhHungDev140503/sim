@@ -25,6 +25,7 @@ async function getInitialEntries(): Promise<ChangelogEntry[]> {
     const res = await fetch(releasesEndpoint(1), {
       headers: { Accept: 'application/vnd.github+json' },
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
     })
     const releases = (await res.json()) as GitHubRelease[]
     return mapReleases(releases ?? [])

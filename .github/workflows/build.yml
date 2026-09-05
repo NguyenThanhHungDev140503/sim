@@ -8,6 +8,10 @@ on:
       - 'v*'
   # pull_request: []  # Disabled to save CI minutes
 
+concurrency:
+  group: build-ghcr-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
 
@@ -55,25 +59,27 @@ jobs:
           TELEMETRY_DIR="${RUNNER_TEMP:-/tmp}/sim-build-telemetry"
           mkdir -p "$TELEMETRY_DIR"
           TELEMETRY_LOG="$TELEMETRY_DIR/memory-telemetry.log"
-          echo "=== Starting memory telemetry at $(date -u) ===" > "$TELEMETRY_LOG"
+          echo "=== Starting memory telemetry at $(date -u) ===" | tee "$TELEMETRY_LOG"
 
           (
             while true; do
-              {
-                echo "--- $(date -u +'%Y-%m-%dT%H:%M:%SZ') ---"
-                free -m
-                if [ -f /sys/fs/cgroup/memory.current ]; then
-                  echo "cgroup memory.current: $(cat /sys/fs/cgroup/memory.current) bytes"
-                fi
-                if [ -f /sys/fs/cgroup/memory.events ]; then
-                  echo "cgroup memory.events:"
-                  cat /sys/fs/cgroup/memory.events
-                fi
-                echo "Top memory processes:"
-                ps -eo pid,%mem,%cpu,rss,vsz,comm --sort=-rss | head -n 8
-                echo ""
-              } >> "$TELEMETRY_LOG" 2>&1
-              sleep 5
+              SAMPLE_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+              SAMPLE_HEADER="--- [TELEMETRY] $SAMPLE_TIME ---"
+              echo "$SAMPLE_HEADER" >> "$TELEMETRY_LOG"
+              echo "$SAMPLE_HEADER"
+              free -m | tee -a "$TELEMETRY_LOG"
+              if [ -f /sys/fs/cgroup/memory.current ]; then
+                CG_CUR="cgroup memory.current: $(cat /sys/fs/cgroup/memory.current) bytes"
+                echo "$CG_CUR" | tee -a "$TELEMETRY_LOG"
+              fi
+              if [ -f /sys/fs/cgroup/memory.events ]; then
+                echo "cgroup memory.events:" | tee -a "$TELEMETRY_LOG"
+                cat /sys/fs/cgroup/memory.events | tee -a "$TELEMETRY_LOG"
+              fi
+              echo "Top memory processes:" | tee -a "$TELEMETRY_LOG"
+              ps -eo pid,%mem,%cpu,rss,vsz,comm --sort=-rss | head -n 8 | tee -a "$TELEMETRY_LOG"
+              echo "" | tee -a "$TELEMETRY_LOG"
+              sleep 10
             done
           ) &
           SAMPLER_PID=$!
@@ -83,15 +89,21 @@ jobs:
             echo "Stopping telemetry sampler (PID: $SAMPLER_PID)..."
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
-            echo "=== Last 25 lines of build telemetry ==="
-            tail -n 25 "$TELEMETRY_LOG" 2>/dev/null || true
             return $exit_code
           }
           trap cleanup EXIT INT TERM
 
+          echo "::group::Step: Next.js build"
           bun run --cwd apps/sim build
+          echo "::endgroup::"
+
+          echo "::group::Step: Bootstrap standalone bundle"
           bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
+          echo "::endgroup::"
+
+          echo "::group::Step: Verify standalone output"
           ls -la apps/sim/.next/standalone
+          echo "::endgroup::"
 
       - name: Upload build telemetry artifact
         if: always()
