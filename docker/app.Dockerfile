@@ -60,7 +60,7 @@ WORKDIR /app
 
 # Pruned manifests from the pruner stage
 COPY --from=pruner /app/out/json/ ./
-COPY --from=pruner /app/bun.lock ./bun.lock
+COPY bun.lock ./bun.lock
 
 # Copy workspace packages from pruner stage for hoisted node_modules symlinks
 COPY --from=pruner /app/out/full/packages ./packages
