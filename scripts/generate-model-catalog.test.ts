@@ -16,19 +16,15 @@ describe('model catalog artifact generator', () => {
 
     expect(catalog.providers).toBeDefined()
     expect(catalog.providers.length).toBeGreaterThan(0)
-    expect(catalog.providers[0]).toMatchObject({
-      id: expect.any(String),
-      name: expect.any(String),
-      description: expect.any(String),
-      slug: expect.any(String),
-      href: expect.any(String),
-      models: expect.any(Array),
-    })
 
     for (const provider of catalog.providers) {
       expect(provider).not.toHaveProperty('icon')
       expect(typeof provider.name).toBe('string')
       expect(typeof provider.id).toBe('string')
+      expect(typeof provider.description).toBe('string')
+      expect(typeof provider.slug).toBe('string')
+      expect(typeof provider.href).toBe('string')
+      expect(Array.isArray(provider.models)).toBe(true)
       for (const model of provider.models) {
         expect(typeof model.id).toBe('string')
         expect(typeof model.displayName).toBe('string')

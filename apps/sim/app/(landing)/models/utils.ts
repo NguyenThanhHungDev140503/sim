@@ -165,7 +165,8 @@ export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): nu
   return capabilities.maxOutputTokens ?? null
 }
 
-const rawProviders: CatalogProvider[] = (catalogJson.providers as unknown as CatalogProvider[])
+// double-cast-allowed: generated JSON catalog has no emitted TypeScript declaration
+const rawProviders: CatalogProvider[] = catalogJson.providers as unknown as CatalogProvider[]
 
 function assertUniqueGeneratedRoutes(providers: CatalogProvider[]): void {
   const seenProviderHrefs = new Map<string, string>()

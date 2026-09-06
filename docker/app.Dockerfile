@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y --no-install-recommends \
     python3-pip python3-venv make g++ \
     && cd /tmp \
-    && npm pack isolated-vm@latest \
+    && npm pack isolated-vm@6.2.0 \
     && tar -xzf isolated-vm-*.tgz \
     && cd package \
     && npm install --build-from-source \
@@ -75,7 +75,7 @@ COPY --from=base-alpine /usr/local/lib/node_modules/isolated-vm ./node_modules/i
 # JOBS=2 caps node-gyp parallelism for any native deps
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
-    HUSKY=0 bun install --ignore-scripts --linker=hoisted
+    HUSKY=0 bun install --frozen-lockfile --ignore-scripts --linker=hoisted
 
 # ========================================
 # Builder Stage: Build the Application

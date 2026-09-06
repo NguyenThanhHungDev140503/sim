@@ -37,82 +37,6 @@ jobs:
           sudo swapon /swapfile
           free -h
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.3.14
-
-      - name: Install dependencies
-        run: |
-          bun install --frozen-lockfile
-
-      - name: Build Next.js Application on Host
-        env:
-          CI: true
-          NODE_OPTIONS: --max-old-space-size=4096
-          NEXT_TELEMETRY_DISABLED: 1
-          VERCEL_TELEMETRY_DISABLED: 1
-          DATABASE_URL: "postgresql://user:pass@localhost:5432/dummy"
-          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-          BETTER_AUTH_SECRET: "build-time-dummy-secret-change-in-production"
-        run: |
-          TELEMETRY_DIR="${RUNNER_TEMP:-/tmp}/sim-build-telemetry"
-          mkdir -p "$TELEMETRY_DIR"
-          TELEMETRY_LOG="$TELEMETRY_DIR/memory-telemetry.log"
-          echo "=== Starting memory telemetry at $(date -u) ===" | tee "$TELEMETRY_LOG"
-
-          (
-            while true; do
-              SAMPLE_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-              SAMPLE_HEADER="--- [TELEMETRY] $SAMPLE_TIME ---"
-              echo "$SAMPLE_HEADER" >> "$TELEMETRY_LOG"
-              echo "$SAMPLE_HEADER"
-              free -m | tee -a "$TELEMETRY_LOG"
-              if [ -f /sys/fs/cgroup/memory.current ]; then
-                CG_CUR="cgroup memory.current: $(cat /sys/fs/cgroup/memory.current) bytes"
-                echo "$CG_CUR" | tee -a "$TELEMETRY_LOG"
-              fi
-              if [ -f /sys/fs/cgroup/memory.events ]; then
-                echo "cgroup memory.events:" | tee -a "$TELEMETRY_LOG"
-                cat /sys/fs/cgroup/memory.events | tee -a "$TELEMETRY_LOG"
-              fi
-              echo "Top memory processes:" | tee -a "$TELEMETRY_LOG"
-              ps -eo pid,%mem,%cpu,rss,vsz,comm --sort=-rss | head -n 8 | tee -a "$TELEMETRY_LOG"
-              echo "" | tee -a "$TELEMETRY_LOG"
-              sleep 10
-            done
-          ) &
-          SAMPLER_PID=$!
-
-          cleanup() {
-            local exit_code=$?
-            echo "Stopping telemetry sampler (PID: $SAMPLER_PID)..."
-            kill "$SAMPLER_PID" 2>/dev/null || true
-            wait "$SAMPLER_PID" 2>/dev/null || true
-            return $exit_code
-          }
-          trap cleanup EXIT INT TERM
-
-          echo "::group::Step: Next.js build"
-          bun run --cwd apps/sim build
-          echo "::endgroup::"
-
-          echo "::group::Step: Bootstrap standalone bundle"
-          bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
-          echo "::endgroup::"
-
-          echo "::group::Step: Verify standalone output"
-          ls -la apps/sim/.next/standalone
-          echo "::endgroup::"
-
-      - name: Upload build telemetry artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-memory-telemetry
-          path: ${{ runner.temp }}/sim-build-telemetry/
-          if-no-files-found: ignore
-
       - name: Set lowercase repository owner
         id: repo-owner
         run: |
@@ -120,6 +44,29 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+
+      - name: Start Docker build telemetry
+        shell: bash
+        run: |
+          TELEMETRY_DIR="${RUNNER_TEMP}/sim-build-telemetry"
+          mkdir -p "$TELEMETRY_DIR"
+          TELEMETRY_LOG="$TELEMETRY_DIR/docker-memory.log"
+
+          (
+            while true; do
+              echo "--- [TELEMETRY] $(date -u +'%Y-%m-%dT%H:%M:%SZ') ---" | tee -a "$TELEMETRY_LOG"
+              free -m | tee -a "$TELEMETRY_LOG"
+              if [ -f /sys/fs/cgroup/memory.current ]; then
+                echo "cgroup memory.current: $(cat /sys/fs/cgroup/memory.current) bytes" | tee -a "$TELEMETRY_LOG"
+              fi
+              docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.MemPerc}} {{.CPUPerc}}' | tee -a "$TELEMETRY_LOG" || true
+              echo '' | tee -a "$TELEMETRY_LOG"
+              sleep 5
+            done
+          ) &
+
+          echo "$!" > "$TELEMETRY_DIR/sampler.pid"
+          echo "BUILD_TELEMETRY_DIR=$TELEMETRY_DIR" >> "$GITHUB_ENV"
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -142,13 +89,29 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: docker/app-fast.Dockerfile
+          file: docker/app.Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           load: false
+
+      - name: Stop Docker build telemetry
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$BUILD_TELEMETRY_DIR/sampler.pid" ]; then
+            kill "$(cat "$BUILD_TELEMETRY_DIR/sampler.pid")" 2>/dev/null || true
+          fi
+
+      - name: Upload Docker build telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-app-docker-memory-telemetry
+          path: ${{ runner.temp }}/sim-build-telemetry/
+          if-no-files-found: ignore
 
   build-and-push-other:
     name: Build & Push other services
