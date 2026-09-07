@@ -39,34 +39,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ========================================
-# Pruner Stage: Emit a minimal monorepo subset that sim depends on
-# ========================================
-FROM build-base AS pruner
-WORKDIR /app
-
-RUN bun install -g turbo@2.9.6
-
-COPY . .
-
-# Read the package name from the app manifest
-RUN APP_PACKAGE_NAME="$(bun -e "console.log(require('./apps/sim/package.json').name)")" && \
-    turbo prune "$APP_PACKAGE_NAME" --docker
-
-# ========================================
-# Dependencies Stage: Install Dependencies (uses pre-compiled isolated-vm from base-alpine)
+# Dependencies Stage: Install root workspace dependencies
 # ========================================
 FROM build-base AS deps
 WORKDIR /app
 
-# Pruned manifests from the pruner stage
-COPY --from=pruner /app/out/json/ ./
-COPY bun.lock ./bun.lock
-
-# Copy workspace packages from pruner stage for hoisted node_modules symlinks
-COPY --from=pruner /app/out/full/packages ./packages
-
-# Ensure @sim/deployment-config is available for install (may not be in turbo prune output)
-COPY packages/deployment-config ./packages/deployment-config
+# Bun validates its root lockfile against every workspace manifest.
+COPY . .
 
 # Copy pre-compiled isolated-vm from base-alpine layer (no rebuild needed!)
 COPY --from=base-alpine /usr/local/lib/node_modules/isolated-vm ./node_modules/isolated-vm
@@ -84,14 +63,8 @@ FROM build-base AS builder
 ARG TARGETPLATFORM
 WORKDIR /app
 
-# Copy node_modules from deps stage (includes pre-compiled isolated-vm)
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy pruned source tree (apps/sim + workspace packages it depends on)
-COPY --from=pruner /app/out/full/ ./
-
-# Lockfile for Next.js/Turbopack workspace detection
-COPY --from=pruner /app/bun.lock ./bun.lock
+# Source and node_modules come from one frozen root-workspace install.
+COPY --from=deps /app/ ./
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
