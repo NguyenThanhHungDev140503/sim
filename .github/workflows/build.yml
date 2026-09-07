@@ -28,10 +28,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure 6GB Swap on Runner Host
+      - name: Configure 10GB Swap on Runner Host
         run: |
           sudo swapoff -a || true
-          sudo fallocate -l 6G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=6144
+          sudo fallocate -l 10G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=10240
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile

@@ -11,6 +11,9 @@ import { LANDING_ROUTES } from './lib/landing/routes'
 
 // CI mode detection
 const isCI = process.env.CI === 'true'
+const buildCpus = process.env.NEXT_BUILD_CPUS
+  ? parseInt(process.env.NEXT_BUILD_CPUS, 10)
+  : (isCI ? 1 : undefined)
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -208,6 +211,14 @@ const nextConfig: NextConfig = {
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
+    ...(buildCpus && {
+      cpus: buildCpus,
+    }),
+    ...(isCI && {
+      staticGenerationMaxConcurrency: 2,
+      staticGenerationMinPagesPerWorker: 100,
+      staticGenerationRetryCount: 0,
+    }),
     /**
      * Under Turbopack this is not a no-op: the list feeds
      * `side_effect_free_packages` and is force-appended to `transpiledPackages`,
