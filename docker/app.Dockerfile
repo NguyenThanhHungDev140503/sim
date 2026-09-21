@@ -86,8 +86,7 @@ ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Run build in Docker
-RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
-    --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
+RUN --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
     bun run --cwd apps/sim build
 
 # Bundle the secrets-loading bootstrap into a self-contained entrypoint
